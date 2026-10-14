@@ -146,6 +146,25 @@ int main (int argc, char** argv)
     setParam (p, "coulisse", 0.5f);
     r.run (1.0);
     check ("coulisse 0,5 (Hz)", r.freqOfLast (0.5), 110.0, 3.0);
+    // coulisse: inerzia del motore (la leva non cambia la velocità di colpo)
+    setParam (p, "coulisse", 1.0f);
+    r.run (0.6);
+    const float rmsAt1 = r.rmsOfLast (0.3);
+    setParam (p, "coulisse", 0.5f);
+    r.run (0.03);
+    check ("motore dopo 30 ms (tra 0,5 e 1)", p.engine.display.motorSpeed.load(), 0.75, 0.2);
+    r.run (0.6);
+    check ("motore a regime", p.engine.display.motorSpeed.load(), 0.5, 0.01);
+
+    // verso l'arresto: il livello cala, il suono resta
+    setParam (p, "coulisse", 0.1f);
+    r.run (1.0);
+    const float rmsLow = r.rmsOfLast (0.3);
+    std::cout << "RMS a 1x: " << rmsAt1 << "   a 0,1x: " << rmsLow << "\n";
+    // -16 dB dal calo con la velocità, più la perdita dei bassi: 220 Hz diventano 22 Hz
+    check ("calo di livello a 0,1x (dB)", 20.0 * std::log10 (rmsLow / rmsAt1), -22.0, 6.0);
+    check ("velocita del nastro a 0,1x", p.engine.display.speed.load(), 0.1, 0.01);
+    setParam (p, "coulisse", 1.0f);
     setParam (p, "mode", 0.0f);
 
     // tastiera del controller, ottava di C3 (nota MIDI 60 in Live e Logic): ogni tasto bianco e nero
@@ -190,6 +209,17 @@ int main (int argc, char** argv)
     if (auto os = png.createOutputStream())
         PNGImageFormat().writeImageToStream (snap, *os);
     std::cout << "snapshot: " << png.getFullPathName() << "\n";
+
+    // seconda istantanea: modalità coulisse, leva a 0,6, nastro innestato
+    setParam (p, "mode", 1.0f);
+    setParam (p, "coulisse", 0.6f);
+    r.run (0.8, {}, note (60, true));
+    ed->repaint();
+    auto snap2 = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.5f);
+    const File png2 = outDir.getChildFile ("phonogene_ui_coulisse.png");
+    png2.deleteFile();
+    if (auto os = png2.createOutputStream())
+        PNGImageFormat().writeImageToStream (snap2, *os);
 
     ed.reset();
     std::cout << (failures == 0 ? "TUTTI I TEST SUPERATI" : "TEST FALLITI: " + String (failures)) << "\n";

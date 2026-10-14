@@ -145,6 +145,10 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
     const double inertiaSec = juce::jmax (0.001, (double) p.inertiaMs * 0.001);
     const double coefAttack = std::exp (-1.0 / (inertiaSec * sr));
     const double coefRelease = std::exp (-1.0 / (inertiaSec * 0.7 * sr));
+    const double coefMotor = std::exp (-1.0 / (inertiaSec * 3.0 * sr));      // il motore è più lento dell'innesto
+    const double coefEngageOn = std::exp (-1.0 / (0.012 * sr));
+    const double coefEngageOff = std::exp (-1.0 / (0.030 * sr));
+    const float rumbleCoef = (float) (1.0 - std::exp (-juce::MathConstants<double>::twoPi * 45.0 / sr));
     const float levelGain = juce::Decibels::decibelsToGain (p.levelDb);
     const float driveAmt = 1.0f + p.drive * 6.0f;
     const float driveNorm = 1.0f / std::sqrt (driveAmt);
@@ -191,27 +195,49 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
         const int note = topHeldNote();
         gate = note >= 0;
 
-        if (! gate)
-            targetSpeed = 0.0;
-        else if (p.mode == 1)
-            targetSpeed = (double) p.coulisse * keyRatio ((double) pitchBend * p.bendRange);
+        double lowSpeed = 0.0;   // 0..1: quanto il nastro è vicino all'arresto (solo coulisse)
+
+        if (p.mode == 1)
+        {
+            // Phonogène à coulisse: la leva regola il motore, che gira sempre e ha una
+            // propria inerzia (manopola INERTIE); il tasto innesta/rilascia il nastro.
+            const double lever = (double) p.coulisse * keyRatio ((double) pitchBend * p.bendRange);
+            motorSpeed = lever + (motorSpeed - lever) * coefMotor;
+            const double eTarget = gate ? 1.0 : 0.0;
+            engage = eTarget + (engage - eTarget) * (gate ? coefEngageOn : coefEngageOff);
+            targetSpeed = motorSpeed * eTarget;
+            speed = motorSpeed * engage;
+            if (speed < 1.0e-6 && ! gate) speed = 0.0;
+            lowSpeed = juce::jlimit (0.0, 1.0, 1.0 - motorSpeed / 0.5);
+        }
         else
         {
-            const int semis = p.extended ? note - 60 : ((note % 12) + 12) % 12;
-            targetSpeed = keyRatio (semis);
-        }
+            if (! gate)
+                targetSpeed = 0.0;
+            else
+            {
+                const int semis = p.extended ? note - 60 : ((note % 12) + 12) % 12;
+                targetSpeed = keyRatio (semis);
+            }
 
-        const double c = targetSpeed > speed ? coefAttack : coefRelease;
-        speed = targetSpeed + (speed - targetSpeed) * c;
-        if (speed < 1.0e-5 && targetSpeed <= 0.0) speed = 0.0;
+            const double c = targetSpeed > speed ? coefAttack : coefRelease;
+            speed = targetSpeed + (speed - targetSpeed) * c;
+            if (speed < 1.0e-5 && targetSpeed <= 0.0) speed = 0.0;
+
+            // il motore della coulisse segue comunque la leva, pronto al cambio di modalità
+            motorSpeed = (double) p.coulisse;
+            engage = 0.0;
+        }
 
         // pleurage (wow) e scintillio (flutter): modulano la velocità reale
         wowPhase += 0.55 / sr;      if (wowPhase >= 1.0) wowPhase -= 1.0;
         flutterPhase += 7.3 / sr;   if (flutterPhase >= 1.0) flutterPhase -= 1.0;
         driftState += 0.0005f * (rng.nextFloat() * 2.0f - 1.0f - driftState);
+        // a bassa velocità il motore è meno stabile: più scintillio e deriva
+        const double flutterNow = flutterDepth * (1.0 + 3.0 * lowSpeed) + 0.0012 * lowSpeed;
         const double mod = 1.0 + wowDepth * std::sin (twoPi * wowPhase)
-                               + flutterDepth * std::sin (twoPi * flutterPhase)
-                               + p.wow * 0.01 * driftState;
+                               + flutterNow * std::sin (twoPi * flutterPhase)
+                               + (p.wow + 0.5 * lowSpeed) * 0.01 * driftState;
         const double v = speed * mod;
 
         // ---- lettura del nastro ----
@@ -233,9 +259,21 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
         }
 
         // il segnale svanisce quando il nastro rallenta fino a fermarsi
-        const float motion = (float) juce::jlimit (0.0, 1.0, speed / 0.12);
+        float motion = (float) juce::jlimit (0.0, 1.0, speed / 0.12);
+        if (p.mode == 1)
+        {
+            // con la correzione della testina tarata per la velocità nominale,
+            // il livello cala con la velocità (circa 6 dB per ottava sotto 1×)
+            motion = (float) (engage * std::pow (juce::jlimit (0.0, 1.0, motorSpeed), 0.8));
+        }
         l *= motion;
         r *= motion;
+
+        // rombo del motore e del trascinamento, udibile solo vicino all'arresto
+        rumbleState += rumbleCoef * ((rng.nextFloat() * 2.0f - 1.0f) - rumbleState);
+        const float rumble = rumbleState * (float) (lowSpeed * engage) * (0.15f + p.hiss) * 0.35f;
+        l += rumble;
+        r += rumble;
 
         // soffio del nastro, presente solo quando il nastro scorre
         const float h = hissFilter.processSingleSampleRaw (rng.nextFloat() * 2.0f - 1.0f) * hissGain * motion;
@@ -271,6 +309,8 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
     const int region = tape.length > 0 ? juce::jmax (1, (int) (p.loopLength * tape.length)) : 1;
     meter = juce::jmax (peak, meter * 0.85f);
     display.speed.store ((float) speed);
+    display.motorSpeed.store ((float) (p.mode == 1 ? motorSpeed : 1.0));
+    display.engaged.store (gate);
     display.position.store ((float) (pos / region));
     const int note = topHeldNote();
     display.activeKey.store (note < 0 ? -1 : (p.mode == 1 ? -1 : ((note % 12) + 12) % 12));

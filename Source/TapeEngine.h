@@ -36,6 +36,8 @@ struct EngineParams
 struct EngineDisplay
 {
     std::atomic<float> speed { 0.0f };
+    std::atomic<float> motorSpeed { 1.0f };  // velocità del motore (coulisse)
+    std::atomic<bool>  engaged { false };
     std::atomic<float> position { 0.0f };   // 0..1 nell'anello
     std::atomic<int>   activeKey { -1 };    // 0..11
     std::atomic<bool>  recording { false };
@@ -89,6 +91,9 @@ private:
     double pos = 0.0;       // campioni dall'inizio della regione
     double speed = 0.0;
     double targetSpeed = 0.0;
+    double motorSpeed = 1.0;   // coulisse: velocità del motore, segue la leva
+    double engage = 0.0;       // coulisse: innesto del nastro 0..1
+    float  rumbleState = 0.0f;
 
     // carattere del nastro
     double wowPhase = 0.0, flutterPhase = 0.0;

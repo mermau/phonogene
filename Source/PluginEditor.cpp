@@ -357,7 +357,8 @@ void DeckView::advance (float dt)
     const float v = proc.engine.display.speed.load();
     tapePhase += v * dt * 90.0f;          // pixel al secondo a velocità nominale
     if (tapePhase > 1.0e6f) tapePhase = 0.0f;
-    capstanAngle += dt * 6.0f;            // il motore gira sempre
+    // il motore gira sempre; nella coulisse la sua velocità segue la leva
+    capstanAngle += dt * 6.0f * proc.engine.display.motorSpeed.load();
     if (capstanAngle > MathConstants<float>::twoPi) capstanAngle -= MathConstants<float>::twoPi;
 }
 
@@ -448,7 +449,9 @@ void DeckView::paint (Graphics& g)
     const auto& disp = proc.engine.display;
     const int mode = (int) proc.apvts.getRawParameterValue ("mode")->load();
     const float speed = disp.speed.load();
-    const int activeKey = (mode != 1 && speed > 0.001f) ? disp.activeKey.load() : -1;
+    // nella coulisse il nastro è trascinato da un solo capstan (il primo) a velocità variabile
+    const int activeKey = mode == 1 ? (disp.engaged.load() ? 0 : -1)
+                                    : (speed > 0.001f ? disp.activeKey.load() : -1);
 
     // piano superiore del cabinet (smalto grigio chiaro)
     g.setColour (Colours::black.withAlpha (0.3f));
@@ -564,12 +567,13 @@ void DeckView::paint (Graphics& g)
 
     // ---- zona centrale: spie dei capstan e velocità ----
     const float lx0 = 432.0f, lx1 = 700.0f;
-    engraved (g, "CABESTANS", { lx0, 40.0f, lx1 - lx0, 12.0f }, 8.5f, Justification::centredLeft, Col::engraveDim);
+    engraved (g, mode == 1 ? String::fromUTF8 ("CABESTANS  ·  HORS SERVICE EN MODE COULISSE") : String ("CABESTANS"),
+              { lx0, 40.0f, lx1 - lx0, 12.0f }, 8.5f, Justification::centredLeft, Col::engraveDim);
     for (int k = 0; k < 12; ++k)
     {
         const float x = lx0 + 10.0f + (float) k * ((lx1 - lx0 - 20.0f) / 11.0f);
         const Point<float> lc { x, 76.0f };
-        const bool on = k == activeKey;
+        const bool on = mode != 1 && k == activeKey;
         g.setColour (Colour (0xff2a2a28));
         g.fillEllipse (Rectangle<float> (15.0f, 15.0f).withCentre (lc));
         if (on) { g.setColour (Col::amber.withAlpha (0.3f)); g.fillEllipse (Rectangle<float> (22.0f, 22.0f).withCentre (lc)); }
@@ -603,7 +607,9 @@ void DeckView::paint (Graphics& g)
         const std::pair<float, const char*> marks[] = { { 0.0f, "0" }, { 0.5f, "\xc2\xbd" }, { 1.0f, "1" }, { 1.5f, "1\xc2\xbd" }, { 2.0f, "2" } };
         for (auto [v, t] : marks)
             engraved (g, String::fromUTF8 (t), Rectangle<float> (24.0f, 12.0f).withCentre (pivot.getPointOnCircumference (rad * 0.96f, angleFor (v))), 8.5f);
-        engraved (g, "VITESSE DU RUBAN", { face.getX(), face.getBottom() - 34.0f, face.getWidth(), 12.0f }, 8.5f);
+        engraved (g, mode == 1 ? String::fromUTF8 ("VITESSE DU RUBAN  ·  MOTEUR ") + String (disp.motorSpeed.load(), 2).replaceCharacter ('.', ',')
+                               : String ("VITESSE DU RUBAN"),
+                  { face.getX(), face.getBottom() - 34.0f, face.getWidth(), 12.0f }, 8.5f);
         engraved (g, String (speed, 3).replaceCharacter ('.', ','), { face.getX(), face.getBottom() - 20.0f, face.getWidth(), 14.0f }, 10.0f);
         Graphics::ScopedSaveState s (g);
         g.reduceClipRegion (face.toNearestInt());
@@ -987,6 +993,8 @@ void PhonogeneEditor::resized()
 void PhonogeneEditor::timerCallback()
 {
     deck.advance (1.0f / 30.0f);
+    const bool coulisseMode = (int) proc.apvts.getRawParameterValue ("mode")->load() == 1;
+    kCoulisse.slider.setAlpha (coulisseMode ? 1.0f : 0.5f);
     deck.repaint();
     strip.repaint();
     keyboard.repaint();
