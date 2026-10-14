@@ -1,0 +1,52 @@
+name: Build macOS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.10-${{ runner.os }}
+
+      - name: Configure
+        run: >
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build
+        run: cmake --build build --config Release -j 4
+
+      - name: Sign (ad hoc) and package
+        run: |
+          ART=build/Phonogene_artefacts/Release
+          mkdir -p dist
+          cp -R "$ART/VST3/Phonogene.vst3" dist/
+          cp -R "$ART/AU/Phonogene.component" dist/
+          cp -R "$ART/Standalone/Phonogene.app" dist/
+          for b in dist/*; do codesign --force --deep -s - "$b"; done
+          cp INSTALL.txt dist/
+          cd dist && zip -r -y ../Phonogene-macOS.zip .
+
+      - name: Validate AU
+        continue-on-error: true
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R dist/Phonogene.component ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aumu Phng Clfx
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Phonogene-macOS
+          path: Phonogene-macOS.zip

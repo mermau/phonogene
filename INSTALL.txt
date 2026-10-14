@@ -1,0 +1,19 @@
+PHONOGENE - prototipo 0.1 (Collateral Effects)
+
+Installazione
+1. Copia Phonogene.vst3 in /Library/Audio/Plug-Ins/VST3
+2. Copia Phonogene.component in /Library/Audio/Plug-Ins/Components
+3. Il plugin non è firmato da uno sviluppatore Apple: dal Terminale
+   xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/VST3/Phonogene.vst3
+   xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/Components/Phonogene.component
+4. Riavvia Ableton Live e rianalizza i plugin.
+
+Test in Ableton Live (sidechain su strumento)
+1. Crea una traccia MIDI e inserisci Phonogene (Plug-ins > Collateral Effects).
+2. Nel dispositivo apri il menu Sidechain e scegli come sorgente la traccia
+   audio da registrare (es. una traccia con l'ingresso della scheda audio
+   o con una clip). Se il menu non compare, è il risultato da annotare.
+3. Sul plugin: SOURCE su ENTRÉE, premi ENREG., suona la sorgente, ripremi ENREG.
+4. Suona la tastiera (KeyLab o mouse): ogni tasto è un capstan.
+
+Con un file: CHARGER oppure trascina un WAV/AIFF sul plugin (SOURCE torna su FICHIER).
