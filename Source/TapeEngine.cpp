@@ -241,6 +241,8 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
     const double coefMotor = std::exp (-1.0 / (juce::jmin (3.0, inertiaSec * 3.0) * sr));
     const double coefEngageOn = std::exp (-1.0 / (0.012 * sr));
     const double coefEngageOff = std::exp (-1.0 / (0.030 * sr));
+    const double paramSmooth = 1.0 - std::exp (-1.0 / (0.06 * sr));   // ~60 ms
+    const double fadeStep = 1.0 / (0.008 * sr);                         // 8 ms
     const float rumbleCoef = (float) (1.0 - std::exp (-juce::MathConstants<double>::twoPi * 45.0 / sr));
     const float levelGain = juce::Decibels::decibelsToGain (p.levelDb);
     const float driveAmt = 1.0f + p.drive * 6.0f;
@@ -367,9 +369,24 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
             // dura = commutazione quasi istantanea). FENÊTRE è la distanza tra due
             // testine misurata sul nastro: ad ogni cambio di testina la lettura salta
             // indietro di questo tratto, che resta fisso in lunghezza di nastro.
-            const int N = juce::jlimit (2, 4, p.heads);
-            const double spacing = juce::jlimit (16.0, juce::jmax (16.0, region * 0.45), (double) p.windowMs * 0.001 * sr);
-            const double ov = 0.02 + 0.98 * (1.0 - juce::jlimit (0.0, 1.0, (double) p.hardness));
+            // i comandi del tamburo cambiano gradualmente: un salto istantaneo della finestra
+            // sposterebbe di colpo i punti di lettura (crepitio)
+            windowSm  += paramSmooth * 0.5 * ((double) p.windowMs - windowSm);   // ~120 ms
+            hardSm    += paramSmooth * ((double) p.hardness - hardSm);
+
+            // cambio del numero di testine: breve dissolvenza, cambio a volume nullo, ripresa
+            const int wantHeads = juce::jlimit (2, 4, p.heads);
+            if (wantHeads != headsActive)
+            {
+                headsFade = juce::jmax (0.0, headsFade - fadeStep);
+                if (headsFade <= 0.0) headsActive = wantHeads;
+            }
+            else
+                headsFade = juce::jmin (1.0, headsFade + fadeStep);
+
+            const int N = headsActive;
+            const double spacing = juce::jlimit (16.0, juce::jmax (16.0, region * 0.45), windowSm * 0.001 * sr);
+            const double ov = 0.02 + 0.98 * (1.0 - juce::jlimit (0.0, 1.0, hardSm));
             const double a = 1.0 / N;
             const double contact = a * (1.0 + ov);               // arco di contatto di una testina
             const double W = spacing * (1.0 + ov);               // nastro letto durante il contatto
@@ -393,7 +410,7 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
                 accR += w * hr;
                 sumW += w;
             }
-            const float norm = 1.0f / juce::jmax (0.5f, sumW);
+            const float norm = (float) headsFade / juce::jmax (0.5f, sumW);
             l = accL * norm;
             r = accR * norm;
 

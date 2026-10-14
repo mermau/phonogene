@@ -39,7 +39,6 @@ public:
     bool loadFile (const juce::File& file);          // sincrono (usato dai test)
     void loadFileAsync (const juce::File& file);     // decodifica in background, poi aggiorna il nastro
     bool isLoading() const { return loadingCount.load() > 0; }
-    int  editorWidth = 1000;                          // dimensione dell'interfaccia, salvata nello stato
     juce::String getFileName() const { return currentFile.getFileName(); }
     float getFileSeconds() const { return fileSeconds; }
 

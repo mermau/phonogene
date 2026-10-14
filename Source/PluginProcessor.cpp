@@ -3,13 +3,15 @@
 
 using APVTS = juce::AudioProcessorValueTreeState;
 
-// Assegnazioni predefinite: CC 20-31 liberi nello standard MIDI, mod wheel sulla leva.
+// Assegnazioni predefinite: manopole da CC 74, mod wheel sulla leva, commutatori su CC 14 e 27-31.
 const PhonogeneProcessor::CCTarget PhonogeneProcessor::ccTargets[numCCTargets] = {
-    { "loopStart", 20 }, { "loopLength", 21 }, { "inertia", 22 }, { "level", 23 },
-    { "wow", 24 }, { "hiss", 25 }, { "drive", 26 }, { "coulisse", 1 },
+    // manopole da CC 74 in poi, nell'ordine del pannello
+    { "loopStart", 74 }, { "loopLength", 75 }, { "inertia", 76 }, { "level", 77 },
+    { "wow", 78 }, { "hiss", 79 }, { "drive", 80 },
+    { "heads", 81 }, { "window", 82 }, { "hardness", 83 },
+    { "coulisse", 1 },
     { "mode", 27 }, { "source", 28 }, { "record", 29 }, { "monitor", 30 },
-    { "restart", 31 }, { "extended", 14 },
-    { "heads", 15 }, { "window", 16 }, { "hardness", 17 }
+    { "restart", 31 }, { "extended", 14 }
 };
 
 namespace
@@ -469,11 +471,11 @@ void PhonogeneProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("filePath", currentFile.getFullPathName(), nullptr);
-    state.setProperty ("uiWidth", editorWidth, nullptr);
     juce::StringArray map;
     for (int i = 0; i < numCCTargets; ++i)
         map.add (juce::String (ccTargets[i].paramId) + ":" + juce::String (assignedCC[(size_t) i].load()));
     state.setProperty ("ccMap", map.joinIntoString (","), nullptr);
+    state.setProperty ("ccMapVersion", 2, nullptr);
 
     // nastro registrato, compresso in FLAC 24 bit
     juce::AudioBuffer<float> rec;
@@ -509,7 +511,6 @@ void PhonogeneProcessor::setStateInformation (const void* data, int sizeInBytes)
             return;
 
         const juce::String path = state.getProperty ("filePath").toString();
-        editorWidth = juce::jlimit (600, 1500, (int) state.getProperty ("uiWidth", 1000));
 
         // nastro registrato
         if (state.hasProperty ("recData"))
@@ -532,7 +533,8 @@ void PhonogeneProcessor::setStateInformation (const void* data, int sizeInBytes)
             }
         }
         state.removeProperty ("recData", nullptr);   // non resta nell'albero dei parametri
-        if (state.hasProperty ("ccMap"))
+        // le mappe salvate prima della versione 2 usavano altri CC predefiniti: si riparte dai nuovi
+        if (state.hasProperty ("ccMap") && (int) state.getProperty ("ccMapVersion", 1) >= 2)
         {
             for (const auto& item : juce::StringArray::fromTokens (state.getProperty ("ccMap").toString(), ",", ""))
             {

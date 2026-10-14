@@ -119,6 +119,8 @@ private:
     float  rumbleState = 0.0f;
     double pitchTarget = 1.0, pitchNow = 1.0;   // universale
     double headPhase = 0.0;
+    double windowSm = 60.0, hardSm = 0.5, headsFade = 1.0;   // comandi del tamburo smussati
+    int    headsActive = 4;
 
     // carattere del nastro
     double wowPhase = 0.0, flutterPhase = 0.0;

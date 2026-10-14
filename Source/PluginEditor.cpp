@@ -916,7 +916,7 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     setResizable (true, true);
     setResizeLimits (600, (int) std::round (600 * logicalH / logicalW), 1500, (int) std::round (1500 * logicalH / logicalW));
     if (auto* c = getConstrainer()) c->setFixedAspectRatio (logicalW / logicalH);
-    setSize (proc.editorWidth, (int) std::round (proc.editorWidth * logicalH / logicalW));
+    setSize ((int) logicalW, (int) logicalH);   // apre sempre alla dimensione d'origine
     startTimerHz (30);
 }
 
@@ -991,6 +991,8 @@ void PhonogeneEditor::paint (Graphics& g)
     g.fillRoundedRectangle (Rectangle<float> (440.0f, 500.0f, 536.0f, 218.0f), 5.0f);
     g.setColour (Colours::black.withAlpha (0.15f));
     g.drawRoundedRectangle (Rectangle<float> (440.0f, 500.0f, 536.0f, 218.0f), 5.0f, 1.0f);
+
+    paintPanelLabels (g);
 }
 
 void PhonogeneEditor::paintOverChildren (Graphics& g)
@@ -1018,13 +1020,10 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
         const auto b = k.slider.getBounds().toFloat();
         engraved (g, k.label, { b.getX() - 10.0f, b.getBottom() - 2.0f, b.getWidth() + 20.0f, 14.0f }, size);
     };
-
-    for (auto* k : { &kStart, &kLength, &kInertia, &kLevel, &kWow, &kHiss, &kDrive })
-        labelUnder (*k);
+    // etichette dentro il deck (il deck è un componente opaco: vanno disegnate sopra)
     for (auto* k : { &kWindow, &kHardness })
         labelUnder (*k, 8.5f);
 
-    // selettori: etichette delle posizioni
     auto positions = [&] (const Knob& k, const StringArray& names)
     {
         const auto b = k.slider.getBounds().toFloat();
@@ -1042,6 +1041,19 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
     positions (kMode, { "CHROM.", "COULISSE", "UNIVERSEL" });
     positions (kSource, { "FICHIER", String::fromUTF8 ("ENTRÉE") });
     positions (kHeads, { "2", "3", "4" });
+}
+
+// Etichette e scale sul pannello inferiore: disegnate sotto i comandi, così il
+// valore a comparsa di una manopola e l'impugnatura della leva le coprono.
+void PhonogeneEditor::paintPanelLabels (Graphics& g)
+{
+    auto labelUnder = [&] (const Knob& k, float size = 9.5f)
+    {
+        const auto b = k.slider.getBounds().toFloat();
+        engraved (g, k.label, { b.getX() - 10.0f, b.getBottom() - 2.0f, b.getWidth() + 20.0f, 14.0f }, size);
+    };
+    for (auto* k : { &kStart, &kLength, &kInertia, &kLevel, &kWow, &kHiss, &kDrive })
+        labelUnder (*k);
 
     // scala della leva della coulisse
     {
@@ -1052,7 +1064,7 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
         {
             const float y = (float) range.getPositionOfValue (v) + b.getY();
             g.setColour (Col::engrave.withAlpha (0.8f));
-            g.drawHorizontalLine ((int) y, b.getX() - 4.0f, b.getX() + 8.0f);
+            g.drawHorizontalLine ((int) y, b.getX() - 4.0f, b.getX() + 10.0f);
             engraved (g, String::fromUTF8 (txt), { b.getX() - 26.0f, y - 7.0f, 20.0f, 14.0f }, 9.0f, Justification::centredRight);
         }
         engraved (g, kCoulisse.label, { b.getX() - 14.0f, b.getBottom() + 4.0f, b.getWidth() + 28.0f, 14.0f }, 9.5f);
@@ -1073,7 +1085,6 @@ void PhonogeneEditor::resized()
              &tRecord, &tMonitor, &tRestart, &tExtended })
         c->setTransform (t);
 
-    proc.editorWidth = getWidth();
     texture = {};
 }
 

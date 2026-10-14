@@ -147,6 +147,7 @@ private:
     static constexpr float logicalW = 1000.0f, logicalH = 740.0f;
     float uiScale() const { return (float) getWidth() / logicalW; }
     void layoutLogical();
+    void paintPanelLabels (juce::Graphics&);
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::Image texture;

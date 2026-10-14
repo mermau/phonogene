@@ -241,19 +241,19 @@ int main (int argc, char** argv)
     // CC MIDI: assegnazione predefinita e MIDI learn
     {
         MidiBuffer m;
-        m.addEvent (MidiMessage::controllerEvent (1, 20, 64), 0);   // DÉBUT
+        m.addEvent (MidiMessage::controllerEvent (1, 74, 64), 0);   // DÉBUT
         m.addEvent (MidiMessage::controllerEvent (1, 27, 127), 0);  // MODE -> universel
         r.run (0.02, {}, m);
         p.applyPendingCCs();
-        check ("CC20 -> DEBUT", p.apvts.getRawParameterValue ("loopStart")->load(), 64.0 / 127.0, 0.01);
+        check ("CC74 -> DEBUT", p.apvts.getRawParameterValue ("loopStart")->load(), 64.0 / 127.0, 0.01);
         check ("CC27 -> MODE", p.apvts.getRawParameterValue ("mode")->load(), 2.0, 0.0);
 
         const int hissIdx = p.ccIndexForParam ("hiss");
         p.startLearn (hissIdx);
-        MidiBuffer l; l.addEvent (MidiMessage::controllerEvent (1, 74, 127), 0);
+        MidiBuffer l; l.addEvent (MidiMessage::controllerEvent (1, 90, 127), 0);
         r.run (0.02, {}, l);
         p.applyPendingCCs();
-        check ("learn: SOUFFLE su CC74", p.getAssignedCC (hissIdx), 74, 0);
+        check ("learn: SOUFFLE su CC90", p.getAssignedCC (hissIdx), 90, 0);
         check ("learn: valore applicato", p.apvts.getRawParameterValue ("hiss")->load(), 1.0, 0.001);
         p.resetDefaultCCs();
         setParam (p, "loopStart", 0.0f);
@@ -323,6 +323,58 @@ int main (int argc, char** argv)
         r.run (1.0);
         check ("universale, finestra commensurata (Hz)", r.spectralPeak (0.5, 250.0, 420.0, 0.25), sol, 0.6);
         setParam (p, "window", 60.0f);
+        // comandi del tamburo girati durante la riproduzione: nessun crepitio
+        {
+            // i crepitii sono discontinuità: energia a larga banda sopra 6 kHz,
+            // mentre il segnale (un SOL e i suoi glissandi) resta sotto 1 kHz
+            auto maxStep = [&] (const std::vector<float>& x, int from)
+            {
+                IIRFilter h1, h2, h3;
+                const auto c = IIRCoefficients::makeHighPass (sr, 6000.0, 0.7);
+                h1.setCoefficients (c); h2.setCoefficients (c); h3.setCoefficients (c);
+                float m = 0.0f;
+                for (size_t i = 0; i < x.size(); ++i)
+                {
+                    const float y = h3.processSingleSampleRaw (h2.processSingleSampleRaw (h1.processSingleSampleRaw (x[i])));
+                    if ((int) i >= from + 256) m = jmax (m, std::abs (y));
+                }
+                return m;
+            };
+            // riferimento: i raccordi delle testine producono già un po' di energia acuta, che dipende
+            // dalle impostazioni; si prende il caso peggiore con i comandi fermi agli estremi
+            setParam (p, "coulisse", 0.5f);
+            float steady = 0.0f;
+            for (float w : { 10.0f, 250.0f })
+                for (float h : { 0.0f, 0.6f })
+                    for (float n : { 0.0f, 2.0f })
+                    {
+                        setParam (p, "window", w); setParam (p, "hardness", h); setParam (p, "heads", n);
+                        r.run (0.5);
+                        steady = jmax (steady, maxStep (r.captured, (int) (0.25 * sr)));
+                    }
+
+            // FENÊTRE e DURETÉ mosse a scatti ogni blocco (~11 ms), come girando le manopole
+            Random rnd (5);
+            std::vector<float> all;
+            for (int b = 0; b < 60; ++b)
+            {
+                setParam (p, "window", 10.0f + rnd.nextFloat() * 240.0f);
+                setParam (p, "hardness", rnd.nextFloat() * 0.6f);
+                r.run (512.0 / sr);
+                all.insert (all.end(), r.captured.begin(), r.captured.end());
+            }
+            setParam (p, "heads", 1.0f);   // cambio del numero di testine durante la nota
+            r.run (0.2);
+            all.insert (all.end(), r.captured.begin(), r.captured.end());
+            const float moving = maxStep (all, 0);
+            std::cout << "salto massimo: fermo " << steady << "  manopole mosse " << moving << "\n";
+            check ("nessun crepitio muovendo FENETRE/DURETE/TETES (picchi sopra 6 kHz < 2x)", moving / steady < 2.0f ? 1.0 : 0.0, 1.0, 0.0);
+            setParam (p, "window", 60.0f);
+            setParam (p, "hardness", 0.5f);
+            setParam (p, "heads", 2.0f);
+            r.run (0.3);
+        }
+
         setParam (p, "heads", 0.0f);      // 2 testine
         setParam (p, "hardness", 1.0f);   // commutazione secca
         setParam (p, "coulisse", 0.5f);
