@@ -136,6 +136,7 @@ private:
     OctaveKeyboard keyboard;
 
     Knob kStart, kLength, kInertia, kLevel, kWow, kHiss, kDrive, kMode, kSource, kCoulisse;
+    Knob kHeads, kWindow, kHardness;   // testina rotante
     PhonoToggle tRecord, tMonitor, tRestart, tExtended;
     std::unique_ptr<ButtonAtt> aRecord, aMonitor, aRestart, aExtended;
     juce::TextButton loadButton { "CHARGER" };

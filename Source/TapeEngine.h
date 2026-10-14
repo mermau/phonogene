@@ -30,6 +30,9 @@ struct EngineParams
     float  levelDb = 0.0f;
     float  coulisse = 1.0f;   // velocità della leva (0..2)
     float  bendRange = 12.0f; // semitoni del pitch bend in modalità coulisse
+    int    heads = 4;         // universale: testine sul tamburo
+    float  windowMs = 60.0f;  // universale: nastro a contatto con una testina (ms a velocità nominale)
+    float  hardness = 0.5f;   // universale: 0 dissolvenze morbide, 1 commutazione secca
 };
 
 // Stato condiviso con l'interfaccia (sola lettura lato GUI).
@@ -38,6 +41,9 @@ struct EngineDisplay
     std::atomic<float> speed { 0.0f };
     std::atomic<float> motorSpeed { 1.0f };  // velocità del motore (coulisse)
     std::atomic<bool>  engaged { false };
+    std::atomic<float> pitch { 1.0f };       // altezza (universale: tamburo)
+    std::atomic<float> headPhase { 0.0f };   // rotazione del tamburo 0..1
+    std::atomic<int>   heads { 4 };
     std::atomic<float> position { 0.0f };   // 0..1 nell'anello
     std::atomic<int>   activeKey { -1 };    // 0..11
     std::atomic<bool>  recording { false };
@@ -94,6 +100,8 @@ private:
     double motorSpeed = 1.0;   // coulisse: velocità del motore, segue la leva
     double engage = 0.0;       // coulisse: innesto del nastro 0..1
     float  rumbleState = 0.0f;
+    double pitchTarget = 1.0, pitchNow = 1.0;   // universale
+    double headPhase = 0.0;
 
     // carattere del nastro
     double wowPhase = 0.0, flutterPhase = 0.0;

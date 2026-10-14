@@ -8,7 +8,8 @@ const PhonogeneProcessor::CCTarget PhonogeneProcessor::ccTargets[numCCTargets] =
     { "loopStart", 20 }, { "loopLength", 21 }, { "inertia", 22 }, { "level", 23 },
     { "wow", 24 }, { "hiss", 25 }, { "drive", 26 }, { "coulisse", 1 },
     { "mode", 27 }, { "source", 28 }, { "record", 29 }, { "monitor", 30 },
-    { "restart", 31 }, { "extended", 14 }
+    { "restart", 31 }, { "extended", 14 },
+    { "heads", 15 }, { "window", 16 }, { "hardness", 17 }
 };
 
 namespace
@@ -40,6 +41,9 @@ PhonogeneProcessor::PhonogeneProcessor()
     pLevel    = apvts.getRawParameterValue ("level");
     pCoulisse = apvts.getRawParameterValue ("coulisse");
     pBend     = apvts.getRawParameterValue ("bendRange");
+    pHeads    = apvts.getRawParameterValue ("heads");
+    pWindow   = apvts.getRawParameterValue ("window");
+    pHardness = apvts.getRawParameterValue ("hardness");
 
     resetDefaultCCs();
     for (auto& v : pendingCC) v.store (-1.0f);
@@ -157,6 +161,14 @@ APVTS::ParameterLayout PhonogeneProcessor::createLayout()
                                                   fmt().withLabel ("dB")));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "coulisse", 1 }, "Coulisse",
                                                   NormalisableRange<float> (0.02f, 2.0f, 0.0f, 0.6f), 1.0f, fmt()));
+    // testina rotante (universale)
+    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "heads", 1 }, "Tetes",
+                                                   StringArray { "2", "3", "4" }, 2));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "window", 1 }, "Fenetre",
+                                                  NormalisableRange<float> (10.0f, 250.0f, 0.0f, 0.5f), 60.0f,
+                                                  fmt().withLabel ("ms")));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "hardness", 1 }, "Durete",
+                                                  NormalisableRange<float> (0.0f, 1.0f), 0.5f, fmt()));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "bendRange", 1 }, "Plage pitch bend",
                                                   NormalisableRange<float> (0.0f, 24.0f, 1.0f), 12.0f,
                                                   AudioParameterFloatAttributes().withLabel ("st")));
@@ -210,6 +222,9 @@ EngineParams PhonogeneProcessor::readParams() const
     p.levelDb    = pLevel->load();
     p.coulisse   = pCoulisse->load();
     p.bendRange  = pBend->load();
+    p.heads      = 2 + (int) pHeads->load();
+    p.windowMs   = pWindow->load();
+    p.hardness   = pHardness->load();
     return p;
 }
 

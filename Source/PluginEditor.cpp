@@ -201,7 +201,8 @@ void PhonoLookAndFeel::drawToggleButton (Graphics& g, ToggleButton& b, bool, boo
     if (isRec)
     {
         // spia rossa a gemma sopra il pulsante
-        const auto lampC = Point<float> (c.x, top.getY() + 9.0f);
+        // la spia (con alone) deve stare tutta dentro il componente
+        const auto lampC = Point<float> (c.x, top.getY() + 14.0f);
         const auto lb = Rectangle<float> (14.0f, 14.0f).withCentre (lampC);
         g.setColour (Colour (0xff2a2a28));
         g.fillEllipse (lb.expanded (3.0f));
@@ -450,8 +451,13 @@ void DeckView::paint (Graphics& g)
     const int mode = (int) proc.apvts.getRawParameterValue ("mode")->load();
     const float speed = disp.speed.load();
     // nella coulisse il nastro è trascinato da un solo capstan (il primo) a velocità variabile
-    const int activeKey = mode == 1 ? (disp.engaged.load() ? 0 : -1)
-                                    : (speed > 0.001f ? disp.activeKey.load() : -1);
+    // cromatico: innestato il capstan del tasto; coulisse e universale: il nastro è
+    // trascinato dal primo capstan a velocità variabile
+    const bool engaged = disp.engaged.load();
+    const int activeKey = mode == 0 ? (speed > 0.001f ? disp.activeKey.load() : -1)
+                                    : (engaged ? 0 : -1);
+    // spie: il tasto suonato (in universale indica l'altezza del tamburo)
+    const int lampKey = mode == 1 ? -1 : (engaged || speed > 0.001f ? disp.activeKey.load() : -1);
 
     // piano superiore del cabinet (smalto grigio chiaro)
     g.setColour (Colours::black.withAlpha (0.3f));
@@ -550,6 +556,30 @@ void DeckView::paint (Graphics& g)
     metalTop (g, ring.inner, 5.0f, tapePhase / 5.0f);
     metalTop (g, ring.tension, ring.tensionR - 2.0f, tapePhase / ring.tensionR);
 
+    if (mode == 2)
+    {
+        // tamburo con le testine rotanti (regolatore temporale di Springer)
+        const auto dc = ring.head.translated (0.0f, -8.0f);
+        const float dr = 15.0f;
+        const int N = disp.heads.load();
+        const float rot = disp.headPhase.load() * MathConstants<float>::twoPi / (float) N;
+        g.setColour (Colours::black.withAlpha (0.3f));
+        g.fillEllipse (Rectangle<float> (2 * dr, 2 * dr).withCentre (dc.translated (2.0f, 3.0f)));
+        ColourGradient dg (Colour (0xfff4f4f1), dc.x - dr * 0.5f, dc.y - dr * 0.6f, Colour (0xff7a7c78), dc.x + dr, dc.y + dr, true);
+        g.setGradientFill (dg);
+        g.fillEllipse (Rectangle<float> (2 * dr, 2 * dr).withCentre (dc));
+        g.setColour (Colour (0xff4a4c48));
+        g.drawEllipse (Rectangle<float> (2 * dr, 2 * dr).withCentre (dc), 0.9f);
+        for (int i = 0; i < N; ++i)
+        {
+            const float a = rot + (float) i * MathConstants<float>::twoPi / (float) N;
+            const auto hp = dc.getPointOnCircumference (dr - 3.0f, a);
+            g.setColour (Colour (0xff2b2b29));
+            g.fillRect (Rectangle<float> (4.0f, 4.0f).withCentre (hp));
+        }
+        metalTop (g, dc, 4.0f, 0.0f, false);
+    }
+    else
     // testina di lettura con schermo
     {
         Graphics::ScopedSaveState s (g);
@@ -567,13 +597,14 @@ void DeckView::paint (Graphics& g)
 
     // ---- zona centrale: spie dei capstan e velocità ----
     const float lx0 = 432.0f, lx1 = 700.0f;
-    engraved (g, mode == 1 ? String::fromUTF8 ("CABESTANS  ·  HORS SERVICE EN MODE COULISSE") : String ("CABESTANS"),
+    engraved (g, mode == 1 ? String::fromUTF8 ("CABESTANS  ·  HORS SERVICE EN MODE COULISSE")
+                           : (mode == 2 ? String::fromUTF8 ("HAUTEUR  ·  TAMBOUR ROTATIF") : String ("CABESTANS")),
               { lx0, 40.0f, lx1 - lx0, 12.0f }, 8.5f, Justification::centredLeft, Col::engraveDim);
     for (int k = 0; k < 12; ++k)
     {
         const float x = lx0 + 10.0f + (float) k * ((lx1 - lx0 - 20.0f) / 11.0f);
         const Point<float> lc { x, 76.0f };
-        const bool on = mode != 1 && k == activeKey;
+        const bool on = k == lampKey;
         g.setColour (Colour (0xff2a2a28));
         g.fillEllipse (Rectangle<float> (15.0f, 15.0f).withCentre (lc));
         if (on) { g.setColour (Col::amber.withAlpha (0.3f)); g.fillEllipse (Rectangle<float> (22.0f, 22.0f).withCentre (lc)); }
@@ -586,7 +617,7 @@ void DeckView::paint (Graphics& g)
 
     // tachimetro del nastro
     {
-        auto face = Rectangle<float> (lx0, 120.0f, lx1 - lx0, 140.0f);
+        auto face = Rectangle<float> (lx0, 112.0f, lx1 - lx0, 128.0f);
         g.setColour (Colour (0xff1d1d1c));
         g.fillRoundedRectangle (face, 3.0f);
         face = face.reduced (6.0f);
@@ -608,7 +639,8 @@ void DeckView::paint (Graphics& g)
         for (auto [v, t] : marks)
             engraved (g, String::fromUTF8 (t), Rectangle<float> (24.0f, 12.0f).withCentre (pivot.getPointOnCircumference (rad * 0.96f, angleFor (v))), 8.5f);
         engraved (g, mode == 1 ? String::fromUTF8 ("VITESSE DU RUBAN  ·  MOTEUR ") + String (disp.motorSpeed.load(), 2).replaceCharacter ('.', ',')
-                               : String ("VITESSE DU RUBAN"),
+                               : (mode == 2 ? String::fromUTF8 ("VITESSE DU RUBAN  ·  HAUTEUR ") + String (disp.pitch.load(), 2).replaceCharacter ('.', ',')
+                                            : String ("VITESSE DU RUBAN")),
                   { face.getX(), face.getBottom() - 34.0f, face.getWidth(), 12.0f }, 8.5f);
         engraved (g, String (speed, 3).replaceCharacter ('.', ','), { face.getX(), face.getBottom() - 20.0f, face.getWidth(), 14.0f }, 10.0f);
         Graphics::ScopedSaveState s (g);
@@ -619,9 +651,16 @@ void DeckView::paint (Graphics& g)
         g.setColour (Colours::white.withAlpha (0.15f));
         g.fillRect (face.withHeight (face.getHeight() * 0.3f));
     }
-    if (mode == 2)
-        engraved (g, String::fromUTF8 ("TÊTE ROTATIVE : PROCHAINE VERSION"), { lx0, 280.0f, lx1 - lx0, 14.0f }, 9.0f,
-                  Justification::centred, Col::lamp.darker (0.3f));
+    // riquadro dei comandi della testina rotante
+    {
+        const auto box = Rectangle<float> (lx0, 250.0f, lx1 - lx0, 120.0f);
+        g.setColour (Colours::black.withAlpha (mode == 2 ? 0.07f : 0.03f));
+        g.fillRoundedRectangle (box, 4.0f);
+        g.setColour (Colours::black.withAlpha (0.18f));
+        g.drawRoundedRectangle (box, 4.0f, 1.0f);
+        engraved (g, String::fromUTF8 ("TÊTE ROTATIVE  ·  UNIVERSEL"), box.reduced (8.0f, 4.0f).removeFromTop (12.0f), 8.0f,
+                  Justification::centredLeft, mode == 2 ? Col::engrave : Col::engraveDim);
+    }
 
     for (auto p : { area.getTopLeft().translated (12, 12), area.getBottomLeft().translated (12, -12) })
         screw (g, p, 4.5f, 0.9f);
@@ -820,8 +859,11 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     setupKnob (kMode,    "mode",       "MODE");
     setupKnob (kSource,  "source",     "SOURCE");
     setupKnob (kCoulisse, "coulisse",  "COULISSE", Slider::LinearVertical);
+    setupKnob (kHeads,    "heads",     String::fromUTF8 ("TÊTES"));
+    setupKnob (kWindow,   "window",    String::fromUTF8 ("FENÊTRE"));
+    setupKnob (kHardness, "hardness",  String::fromUTF8 ("DURETÉ"));
 
-    for (auto* s : { &kMode.slider, &kSource.slider })
+    for (auto* s : { &kMode.slider, &kSource.slider, &kHeads.slider })
     {
         s->getProperties().set ("selector", true);
         s->setMouseDragSensitivity (40);        // basta un breve trascinamento per cambiare posizione
@@ -843,6 +885,8 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     registerCC (kMode.slider, "mode");         registerCC (kSource.slider, "source");
     registerCC (tRecord, "record");            registerCC (tMonitor, "monitor");
     registerCC (tRestart, "restart");          registerCC (tExtended, "extended");
+    registerCC (kHeads.slider, "heads");       registerCC (kWindow.slider, "window");
+    registerCC (kHardness.slider, "hardness");
 
     addAndMakeVisible (loadButton);
     loadButton.onClick = [this] { openFileChooser(); };
@@ -949,6 +993,8 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
 
     for (auto* k : { &kStart, &kLength, &kInertia, &kLevel, &kWow, &kHiss, &kDrive })
         labelUnder (*k);
+    for (auto* k : { &kWindow, &kHardness })
+        labelUnder (*k, 8.5f);
 
     // selettori: etichette delle posizioni
     auto positions = [&] (const Knob& k, const StringArray& names)
@@ -967,6 +1013,7 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
     };
     positions (kMode, { "CHROM.", "COULISSE", "UNIVERSEL" });
     positions (kSource, { "FICHIER", String::fromUTF8 ("ENTRÉE") });
+    positions (kHeads, { "2", "3", "4" });
 
     // scala della leva della coulisse
     {
@@ -1011,7 +1058,12 @@ void PhonogeneEditor::resized()
     const int dx = 24 + 952 - 226;
     kMode.slider.setBounds   (dx + 22,  150, 92, 80);
     kSource.slider.setBounds (dx + 122, 150, 92, 80);
-    tRecord.setBounds        (dx + 40,  272, 60, 84);
+    tRecord.setBounds        (dx + 40,  264, 60, 92);
+
+    // testina rotante, nel riquadro sotto il tachimetro
+    kHeads.slider.setBounds    (470, 312, 72, 54);
+    kWindow.slider.setBounds   (550, 304, 84, 62);
+    kHardness.slider.setBounds (638, 304, 84, 62);
     tMonitor.setBounds       (dx + 128, 262, 56, 94);
 }
 
@@ -1073,6 +1125,10 @@ void PhonogeneEditor::timerCallback()
     const bool coulisseMode = (int) proc.apvts.getRawParameterValue ("mode")->load() == 1;
     kCoulisse.slider.setAlpha (coulisseMode ? 1.0f : 0.5f);
     tExtended.setAlpha (coulisseMode ? 0.5f : 1.0f);    // in coulisse l'altezza del tasto non conta
+    const bool universal = (int) proc.apvts.getRawParameterValue ("mode")->load() == 2;
+    kCoulisse.slider.setAlpha (coulisseMode || universal ? 1.0f : 0.5f);   // in universale la leva regola la durata
+    for (auto* k : { &kHeads, &kWindow, &kHardness })
+        k->slider.setAlpha (universal ? 1.0f : 0.5f);
 
     const int learn = proc.getLearnIndex();
     if (learn != lastLearn || learn >= 0)

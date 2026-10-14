@@ -56,6 +56,54 @@ struct Runner
         return crossings / secs;
     }
 
+    // altezza per autocorrelazione: robusta ai raccordi di fase tra le testine rotanti
+    double pitchOfLast (double secs, double fMin = 60.0, double fMax = 1200.0) const
+    {
+        const int n = jmin ((int) (secs * sr), (int) captured.size());
+        const float* x = captured.data() + captured.size() - (size_t) n;
+        const int lagMin = (int) (sr / fMax), lagMax = (int) (sr / fMin);
+        std::vector<double> ac ((size_t) lagMax + 2, 0.0);
+        for (int lag = lagMin - 1; lag <= lagMax + 1; ++lag)
+        {
+            double acc = 0, e1 = 0, e2 = 0;
+            for (int i = 0; i + lag < n; ++i) { acc += x[i] * x[i + lag]; e1 += x[i] * x[i]; e2 += x[i + lag] * x[i + lag]; }
+            ac[(size_t) lag] = acc / std::sqrt (e1 * e2 + 1e-12);
+        }
+        // primo massimo locale sopra il 90% del massimo globale (evita i sottomultipli)
+        double best = 0; for (int lag = lagMin; lag <= lagMax; ++lag) best = jmax (best, ac[(size_t) lag]);
+        for (int lag = lagMin; lag <= lagMax; ++lag)
+            if (ac[(size_t) lag] >= 0.9 * best && ac[(size_t) lag] >= ac[(size_t) lag - 1] && ac[(size_t) lag] >= ac[(size_t) lag + 1])
+            {
+                const double a = ac[(size_t) lag - 1], b = ac[(size_t) lag], c = ac[(size_t) lag + 1];
+                const double off = 0.5 * (a - c) / (a - 2 * b + c + 1e-12);
+                return sr / (lag + off);
+            }
+        return 0.0;
+    }
+
+    // picco spettrale (DFT con finestra di Hann) in una banda: misura la portante,
+    // non le bande laterali prodotte dai raccordi tra le testine
+    double spectralPeak (double secs, double f0, double f1, double step = 0.5) const
+    {
+        const int n = jmin ((int) (secs * sr), (int) captured.size());
+        const float* x = captured.data() + captured.size() - (size_t) n;
+        double bestF = f0, bestP = -1.0;
+        for (double f = f0; f <= f1; f += step)
+        {
+            double re = 0, im = 0;
+            const double w = MathConstants<double>::twoPi * f / sr;
+            for (int i = 0; i < n; ++i)
+            {
+                const double win = 0.5 - 0.5 * std::cos (MathConstants<double>::twoPi * i / (n - 1));
+                re += x[i] * win * std::cos (w * i);
+                im -= x[i] * win * std::sin (w * i);
+            }
+            const double pw = re * re + im * im;
+            if (pw > bestP) { bestP = pw; bestF = f; }
+        }
+        return bestF;
+    }
+
     float rmsOfLast (double secs) const
     {
         const int n = (int) (secs * sr);
@@ -191,6 +239,41 @@ int main (int argc, char** argv)
         r.run (0.05);
     }
 
+    // universale: altezza dalla tastiera, durata dalla leva, indipendenti
+    {
+        r.run (0.3, {}, note (64, false));   // rilascia il MI tenuto dalle prove precedenti
+        setParam (p, "mode", 2.0f);
+        setParam (p, "hiss", 0.0f);
+        setParam (p, "wow", 0.0f);
+        const double sol = 220.0 * std::pow (2.0, 7.0 / 12.0);
+        for (float lever : { 1.0f, 0.25f, 0.02f, 2.0f })
+        {
+            setParam (p, "coulisse", lever);
+            r.run (1.0, {}, note (67, true));
+            check ("universale SOL, nastro " + String (lever, 2) + " (Hz)", r.spectralPeak (0.5, 250.0, 420.0), sol, 8.0);
+            check ("  velocita del nastro", p.engine.display.speed.load(), lever, lever * 0.02 + 0.001);
+        }
+        // con FENÊTRE pari a un numero intero di periodi il salto tra testine non sposta la fase:
+        // la portante coincide esattamente con l'altezza voluta
+        setParam (p, "window", 13.0f / 220.0f * 1000.0f);
+        setParam (p, "coulisse", 0.3f);
+        r.run (1.0);
+        check ("universale, finestra commensurata (Hz)", r.spectralPeak (0.5, 250.0, 420.0, 0.25), sol, 0.6);
+        setParam (p, "window", 60.0f);
+        setParam (p, "heads", 0.0f);      // 2 testine
+        setParam (p, "hardness", 1.0f);   // commutazione secca
+        setParam (p, "coulisse", 0.5f);
+        r.run (1.0);
+        check ("universale 2 testine dure (Hz)", r.spectralPeak (0.5, 250.0, 420.0), sol, 8.0);
+        r.run (0.4, {}, note (67, false));
+        check ("universale: silenzio al rilascio", r.rmsOfLast (0.1), 0.0, 0.001);
+        setParam (p, "heads", 2.0f);
+        setParam (p, "hardness", 0.5f);
+        setParam (p, "coulisse", 1.0f);
+        setParam (p, "mode", 0.0f);
+        r.run (0.1);
+    }
+
     // testo dei valori a due decimali
     for (auto id : { "loopStart", "loopLength", "inertia", "level", "wow", "hiss", "drive" })
     {
@@ -254,6 +337,19 @@ int main (int argc, char** argv)
     png2.deleteFile();
     if (auto os = png2.createOutputStream())
         PNGImageFormat().writeImageToStream (snap2, *os);
+
+    // terza istantanea: universale, nastro a 0,4, SOL suonato, registrazione accesa (spia)
+    setParam (p, "mode", 2.0f);
+    setParam (p, "coulisse", 0.4f);
+    r.run (0.8, {}, [] { MidiBuffer m; m.addEvent (MidiMessage::noteOff (1, 60), 0); m.addEvent (MidiMessage::noteOn (1, 67, 1.0f), 1); return m; }());
+    setParam (p, "record", 1.0f);
+    ed->repaint();
+    auto snap3 = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.5f);
+    setParam (p, "record", 0.0f);
+    const File png3 = outDir.getChildFile ("phonogene_ui_universel.png");
+    png3.deleteFile();
+    if (auto os = png3.createOutputStream())
+        PNGImageFormat().writeImageToStream (snap3, *os);
 
     ed.reset();
     std::cout << (failures == 0 ? "TUTTI I TEST SUPERATI" : "TEST FALLITI: " + String (failures)) << "\n";

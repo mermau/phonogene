@@ -211,6 +211,25 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
             if (speed < 1.0e-6 && ! gate) speed = 0.0;
             lowSpeed = juce::jlimit (0.0, 1.0, 1.0 - motorSpeed / 0.5);
         }
+        else if (p.mode == 2)
+        {
+            // Phonogène universel: il nastro scorre alla velocità della leva (durata),
+            // il tamburo con le testine rotanti dà l'altezza (tastiera + pitch bend).
+            const double eTarget = gate ? 1.0 : 0.0;
+            engage = eTarget + (engage - eTarget) * (gate ? coefEngageOn : coefEngageOff);
+            if (gate)
+            {
+                const int semis = p.extended ? note - 60 : ((note % 12) + 12) % 12;
+                pitchTarget = keyRatio ((double) semis + (double) pitchBend * p.bendRange);
+            }
+            pitchNow = pitchTarget + (pitchNow - pitchTarget) * coefAttack;   // glissando con INERTIE
+
+            targetSpeed = gate ? (double) p.coulisse : 0.0;
+            const double c = targetSpeed > speed ? coefAttack : coefRelease;
+            speed = targetSpeed + (speed - targetSpeed) * c;
+            if (speed < 1.0e-6 && ! gate) speed = 0.0;
+            motorSpeed = (double) p.coulisse;
+        }
         else
         {
             if (! gate)
@@ -245,7 +264,49 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
         float l = 0.0f, r = 0.0f;
         const auto tape = currentTape (p);
 
-        if (tape.length > 4 && v > 0.0)
+        if (p.mode == 2 && tape.length > 4 && engage > 1.0e-4)
+        {
+            const int start = juce::jlimit (0, tape.length - 4, (int) (p.loopStart * tape.length));
+            const int region = juce::jlimit (4, tape.length - start, (int) (p.loopLength * tape.length));
+            if (pos >= region || pos < 0.0) pos = std::fmod (std::fmod (pos, (double) region) + region, (double) region);
+
+            // Modello del tamburo: N testine equidistanti; il nastro avvolge 1/N della
+            // circonferenza più una sovrapposizione (morbida = due testine insieme,
+            // dura = commutazione quasi istantanea). FENÊTRE è la distanza tra due
+            // testine misurata sul nastro: ad ogni cambio di testina la lettura salta
+            // indietro di questo tratto, che resta fisso in lunghezza di nastro.
+            const int N = juce::jlimit (2, 4, p.heads);
+            const double spacing = juce::jlimit (16.0, juce::jmax (16.0, region * 0.45), (double) p.windowMs * 0.001 * sr);
+            const double ov = 0.02 + 0.98 * (1.0 - juce::jlimit (0.0, 1.0, (double) p.hardness));
+            const double a = 1.0 / N;
+            const double contact = a * (1.0 + ov);               // arco di contatto di una testina
+            const double W = spacing * (1.0 + ov);               // nastro letto durante il contatto
+            const double vp = pitchNow * mod;
+            headPhase += (vp - v) * contact / W;                 // velocità relativa testina/nastro
+            headPhase -= std::floor (headPhase);
+
+            float accL = 0.0f, accR = 0.0f, sumW = 0.0f;
+            for (int i = 0; i < N; ++i)
+            {
+                double x = headPhase + (double) i / N;
+                x -= std::floor (x);
+                if (x >= contact) continue;                      // testina fuori dal nastro
+                const float w = (float) juce::jmin (1.0, x / (ov * a), (contact - x) / (ov * a));
+                double rp = pos + (x / contact - 0.5) * W;
+                rp = std::fmod (rp, (double) region);
+                if (rp < 0.0) rp += region;
+                accL += w * hermite (tape.l, tape.length, start, region, rp);
+                accR += w * hermite (tape.r, tape.length, start, region, rp);
+                sumW += w;
+            }
+            const float norm = 1.0f / juce::jmax (0.5f, sumW);
+            l = accL * norm;
+            r = accR * norm;
+
+            pos += v;
+            if (pos >= region) pos -= region;
+        }
+        else if (p.mode != 2 && tape.length > 4 && v > 0.0)
         {
             const int start = juce::jlimit (0, tape.length - 4, (int) (p.loopStart * tape.length));
             const int region = juce::jlimit (4, tape.length - start, (int) (p.loopLength * tape.length));
@@ -261,6 +322,8 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
 
         // il segnale svanisce quando il nastro rallenta fino a fermarsi
         float motion = (float) juce::jlimit (0.0, 1.0, speed / 0.12);
+        if (p.mode == 2)
+            motion = (float) engage;   // l'altezza non dipende dalla velocità del nastro
         if (p.mode == 1)
         {
             // con la correzione della testina tarata per la velocità nominale,
@@ -311,6 +374,9 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
     meter = juce::jmax (peak, meter * 0.85f);
     display.speed.store ((float) speed);
     display.motorSpeed.store ((float) (p.mode == 1 ? motorSpeed : 1.0));
+    display.pitch.store ((float) (p.mode == 2 ? pitchNow : speed));
+    display.headPhase.store ((float) headPhase);
+    display.heads.store (juce::jlimit (2, 4, p.heads));
     display.engaged.store (gate);
     display.position.store ((float) (pos / region));
     const int note = topHeldNote();

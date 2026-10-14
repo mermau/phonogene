@@ -50,7 +50,7 @@ public:
 
     // ---- MIDI CC: assegnazioni predefinite modificabili con MIDI learn ----
     struct CCTarget { const char* paramId; int defaultCC; };
-    static constexpr int numCCTargets = 14;
+    static constexpr int numCCTargets = 17;
     static const CCTarget ccTargets[numCCTargets];
 
     int  ccIndexForParam (const juce::String& paramId) const;
@@ -84,7 +84,7 @@ private:
 
     std::atomic<float>* pMode {}, *pSource {}, *pRecord {}, *pMonitor {}, *pRestart {}, *pExtended {},
                       *pStart {}, *pLength {}, *pInertia {}, *pWow {}, *pHiss {}, *pDrive {},
-                      *pLevel {}, *pCoulisse {}, *pBend {};
+                      *pLevel {}, *pCoulisse {}, *pBend {}, *pHeads {}, *pWindow {}, *pHardness {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PhonogeneProcessor)
 };
