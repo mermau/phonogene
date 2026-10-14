@@ -145,7 +145,8 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
     const double inertiaSec = juce::jmax (0.001, (double) p.inertiaMs * 0.001);
     const double coefAttack = std::exp (-1.0 / (inertiaSec * sr));
     const double coefRelease = std::exp (-1.0 / (inertiaSec * 0.7 * sr));
-    const double coefMotor = std::exp (-1.0 / (inertiaSec * 3.0 * sr));      // il motore è più lento dell'innesto
+    // il motore con volano è più lento dell'innesto (al massimo 3 s)
+    const double coefMotor = std::exp (-1.0 / (juce::jmin (3.0, inertiaSec * 3.0) * sr));
     const double coefEngageOn = std::exp (-1.0 / (0.012 * sr));
     const double coefEngageOff = std::exp (-1.0 / (0.030 * sr));
     const float rumbleCoef = (float) (1.0 - std::exp (-juce::MathConstants<double>::twoPi * 45.0 / sr));

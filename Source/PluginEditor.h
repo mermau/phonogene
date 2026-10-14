@@ -23,8 +23,13 @@ public:
 class PhonoSlider : public juce::Slider
 {
 public:
+    // il tasto destro è riservato al menu MIDI (gestito dall'editor)
+    void mouseDown (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) juce::Slider::mouseDown (e); }
+    void mouseDrag (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) juce::Slider::mouseDrag (e); }
+
     void mouseUp (const juce::MouseEvent& e) override
     {
+        if (e.mods.isPopupMenu()) return;
         const bool wasClick = ! e.mouseWasDraggedSinceMouseDown();
         juce::Slider::mouseUp (e);
 
@@ -35,6 +40,13 @@ public:
             setValue (v, juce::sendNotificationSync);
         }
     }
+};
+
+class PhonoToggle : public juce::ToggleButton
+{
+public:
+    void mouseDown (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) juce::ToggleButton::mouseDown (e); }
+    void mouseUp (const juce::MouseEvent& e) override   { if (! e.mods.isPopupMenu()) juce::ToggleButton::mouseUp (e); }
 };
 
 // Deck con l'anello di nastro, la testina e i dodici capstan.
@@ -95,6 +107,7 @@ public:
 
     bool isInterestedInFileDrag (const juce::StringArray&) override { return true; }
     void filesDropped (const juce::StringArray& files, int, int) override;
+    void mouseDown (const juce::MouseEvent&) override;
 
 private:
     using SliderAtt = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -123,10 +136,17 @@ private:
     OctaveKeyboard keyboard;
 
     Knob kStart, kLength, kInertia, kLevel, kWow, kHiss, kDrive, kMode, kSource, kCoulisse;
-    juce::ToggleButton tRecord, tMonitor, tRestart, tExtended;
+    PhonoToggle tRecord, tMonitor, tRestart, tExtended;
     std::unique_ptr<ButtonAtt> aRecord, aMonitor, aRestart, aExtended;
     juce::TextButton loadButton { "CHARGER" };
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::Image texture;
+
+    // comandi mappabili via CC: componente -> parametro
+    std::vector<std::pair<juce::Component*, juce::String>> ccControls;
+    void registerCC (juce::Component& c, const juce::String& paramId);
+    void showCCMenu (juce::Component& c, const juce::String& paramId);
+    juce::Component* componentForCCIndex (int index) const;
+    int lastLearn = -1;
 };

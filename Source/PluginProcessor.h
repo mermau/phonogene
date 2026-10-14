@@ -48,6 +48,20 @@ public:
 
     static constexpr double maxFileSeconds = 120.0;
 
+    // ---- MIDI CC: assegnazioni predefinite modificabili con MIDI learn ----
+    struct CCTarget { const char* paramId; int defaultCC; };
+    static constexpr int numCCTargets = 14;
+    static const CCTarget ccTargets[numCCTargets];
+
+    int  ccIndexForParam (const juce::String& paramId) const;
+    int  getAssignedCC (int index) const { return assignedCC[(size_t) index].load(); }
+    void startLearn (int index) { learnIndex.store (index); }
+    void cancelLearn() { learnIndex.store (-1); }
+    int  getLearnIndex() const { return learnIndex.load(); }
+    void forgetCC (int index) { assignedCC[(size_t) index].store (-1); }
+    void resetDefaultCCs();
+    void applyPendingCCs();   // thread dei messaggi (chiamata dal timer)
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void timerCallback() override;
@@ -62,6 +76,11 @@ private:
     std::atomic<Tape*> retiredTape { nullptr };
     Tape* activeTape = nullptr; // solo thread audio
     std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);
+
+    std::array<std::atomic<int>, numCCTargets>   assignedCC {};
+    std::array<std::atomic<float>, numCCTargets> pendingCC {};   // -1 = nessun valore in attesa
+    std::atomic<int> learnIndex { -1 };
+    void handleControllers (const juce::MidiBuffer& midi) noexcept;
 
     std::atomic<float>* pMode {}, *pSource {}, *pRecord {}, *pMonitor {}, *pRestart {}, *pExtended {},
                       *pStart {}, *pLength {}, *pInertia {}, *pWow {}, *pHiss {}, *pDrive {},

@@ -17,3 +17,14 @@ Test in Ableton Live (sidechain su strumento)
 4. Suona la tastiera (KeyLab o mouse): ogni tasto è un capstan.
 
 Con un file: CHARGER oppure trascina un WAV/AIFF sul plugin (SOURCE torna su FICHIER).
+
+CC MIDI predefiniti (modificabili: tasto destro su un comando > MIDI learn)
+  CC 1  (mod wheel)  COULISSE        CC 25  SOUFFLE
+  CC 20  DÉBUT                        CC 26  SATURATION
+  CC 21  LONGUEUR                     CC 27  MODE
+  CC 22  INERTIE                      CC 28  SOURCE
+  CC 23  NIVEAU                       CC 29  ENREG.
+  CC 24  PLEURAGE                     CC 30  ÉCOUTE
+  CC 31  RETOUR                       CC 14  ÉTENDU
+Dal menu del tasto destro: "Oublier le CC" e "Rétablir les CC par défaut".
+Le assegnazioni vengono salvate con il progetto.

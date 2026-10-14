@@ -3,6 +3,19 @@
 
 using APVTS = juce::AudioProcessorValueTreeState;
 
+// Assegnazioni predefinite: CC 20-31 liberi nello standard MIDI, mod wheel sulla leva.
+const PhonogeneProcessor::CCTarget PhonogeneProcessor::ccTargets[numCCTargets] = {
+    { "loopStart", 20 }, { "loopLength", 21 }, { "inertia", 22 }, { "level", 23 },
+    { "wow", 24 }, { "hiss", 25 }, { "drive", 26 }, { "coulisse", 1 },
+    { "mode", 27 }, { "source", 28 }, { "record", 29 }, { "monitor", 30 },
+    { "restart", 31 }, { "extended", 14 }
+};
+
+namespace
+{
+    juce::String twoDecimals (float v, int) { return juce::String (v, 2); }
+}
+
 PhonogeneProcessor::PhonogeneProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput  ("Input",     juce::AudioChannelSet::stereo(), false)
@@ -28,7 +41,76 @@ PhonogeneProcessor::PhonogeneProcessor()
     pCoulisse = apvts.getRawParameterValue ("coulisse");
     pBend     = apvts.getRawParameterValue ("bendRange");
 
-    startTimerHz (10);
+    resetDefaultCCs();
+    for (auto& v : pendingCC) v.store (-1.0f);
+
+    startTimerHz (30);
+}
+
+void PhonogeneProcessor::resetDefaultCCs()
+{
+    for (int i = 0; i < numCCTargets; ++i)
+        assignedCC[(size_t) i].store (ccTargets[i].defaultCC);
+}
+
+int PhonogeneProcessor::ccIndexForParam (const juce::String& paramId) const
+{
+    for (int i = 0; i < numCCTargets; ++i)
+        if (paramId == ccTargets[i].paramId) return i;
+    return -1;
+}
+
+// Thread audio: legge i CC, gestisce il learn e mette i valori in attesa per il thread dei messaggi.
+void PhonogeneProcessor::handleControllers (const juce::MidiBuffer& midi) noexcept
+{
+    for (const auto meta : midi)
+    {
+        const auto m = meta.getMessage();
+        if (! m.isController())
+            continue;
+
+        const int cc = m.getControllerNumber();
+        if (cc >= 120) continue;   // messaggi di modo canale (all notes off...)
+        const float v = (float) m.getControllerValue() / 127.0f;
+
+        if (const int learn = learnIndex.exchange (-1); learn >= 0)
+        {
+            // un CC controlla un solo comando: lo si toglie agli altri
+            for (auto& a : assignedCC)
+                if (a.load() == cc) a.store (-1);
+            assignedCC[(size_t) learn].store (cc);
+        }
+
+        for (int i = 0; i < numCCTargets; ++i)
+            if (assignedCC[(size_t) i].load() == cc)
+                pendingCC[(size_t) i].store (v);
+    }
+}
+
+// Thread dei messaggi: applica i valori dei CC ai parametri, notificando l'host.
+void PhonogeneProcessor::applyPendingCCs()
+{
+    for (int i = 0; i < numCCTargets; ++i)
+    {
+        const float v = pendingCC[(size_t) i].exchange (-1.0f);
+        if (v < 0.0f) continue;
+
+        auto* param = apvts.getParameter (ccTargets[i].paramId);
+        if (param == nullptr) continue;
+
+        float norm = v;
+        if (dynamic_cast<juce::AudioParameterBool*> (param) != nullptr)
+            norm = v >= 0.5f ? 1.0f : 0.0f;
+        else if (auto* choice = dynamic_cast<juce::AudioParameterChoice*> (param))
+        {
+            const int n = choice->choices.size();
+            norm = choice->convertTo0to1 ((float) juce::roundToInt (v * (float) (n - 1)));
+        }
+
+        param->beginChangeGesture();
+        param->setValueNotifyingHost (norm);
+        param->endChangeGesture();
+    }
 }
 
 PhonogeneProcessor::~PhonogeneProcessor()
@@ -44,6 +126,7 @@ APVTS::ParameterLayout PhonogeneProcessor::createLayout()
 {
     using namespace juce;
     APVTS::ParameterLayout l;
+    auto fmt = [] { return AudioParameterFloatAttributes().withStringFromValueFunction (twoDecimals); };
 
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { "mode", 1 }, "Mode",
                                                    StringArray { "Chromatique", "A coulisse", "Universel" }, 0));
@@ -55,23 +138,25 @@ APVTS::ParameterLayout PhonogeneProcessor::createLayout()
     l.add (std::make_unique<AudioParameterBool> (ParameterID { "extended", 1 }, "Clavier etendu", false));
 
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "loopStart", 1 }, "Debut boucle",
-                                                  NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+                                                  NormalisableRange<float> (0.0f, 1.0f), 0.0f, fmt()));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "loopLength", 1 }, "Longueur boucle",
-                                                  NormalisableRange<float> (0.005f, 1.0f, 0.0f, 0.5f), 1.0f));
+                                                  NormalisableRange<float> (0.005f, 1.0f, 0.0f, 0.5f), 1.0f, fmt()));
+    // fino a 2 s: plausibile per il motore con volano della coulisse; nel cromatico
+    // l'innesto reale stava sotto i ~300 ms, oltre è un uso espressivo
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "inertia", 1 }, "Inertie",
-                                                  NormalisableRange<float> (2.0f, 400.0f, 0.0f, 0.4f), 35.0f,
-                                                  AudioParameterFloatAttributes().withLabel ("ms")));
+                                                  NormalisableRange<float> (2.0f, 2000.0f, 0.0f, 0.3f), 35.0f,
+                                                  fmt().withLabel ("ms")));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "wow", 1 }, "Pleurage",
-                                                  NormalisableRange<float> (0.0f, 1.0f), 0.25f));
+                                                  NormalisableRange<float> (0.0f, 1.0f), 0.25f, fmt()));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "hiss", 1 }, "Souffle",
-                                                  NormalisableRange<float> (0.0f, 1.0f), 0.2f));
+                                                  NormalisableRange<float> (0.0f, 1.0f), 0.2f, fmt()));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "drive", 1 }, "Saturation",
-                                                  NormalisableRange<float> (0.0f, 1.0f), 0.2f));
+                                                  NormalisableRange<float> (0.0f, 1.0f), 0.2f, fmt()));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "level", 1 }, "Niveau",
                                                   NormalisableRange<float> (-36.0f, 12.0f), 0.0f,
-                                                  AudioParameterFloatAttributes().withLabel ("dB")));
+                                                  fmt().withLabel ("dB")));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "coulisse", 1 }, "Coulisse",
-                                                  NormalisableRange<float> (0.02f, 2.0f, 0.0f, 0.6f), 1.0f));
+                                                  NormalisableRange<float> (0.02f, 2.0f, 0.0f, 0.6f), 1.0f, fmt()));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "bendRange", 1 }, "Plage pitch bend",
                                                   NormalisableRange<float> (0.0f, 24.0f, 1.0f), 12.0f,
                                                   AudioParameterFloatAttributes().withLabel ("st")));
@@ -143,6 +228,7 @@ void PhonogeneProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     }
     engine.setFileTape (activeTape);
 
+    handleControllers (midi);
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 
     // sorgente: sidechain se attivo, altrimenti ingresso principale
@@ -170,6 +256,7 @@ void PhonogeneProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
 void PhonogeneProcessor::timerCallback()
 {
+    applyPendingCCs();
     delete retiredTape.exchange (nullptr);
 }
 
@@ -226,6 +313,10 @@ void PhonogeneProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("filePath", currentFile.getFullPathName(), nullptr);
+    juce::StringArray map;
+    for (int i = 0; i < numCCTargets; ++i)
+        map.add (juce::String (ccTargets[i].paramId) + ":" + juce::String (assignedCC[(size_t) i].load()));
+    state.setProperty ("ccMap", map.joinIntoString (","), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -239,6 +330,15 @@ void PhonogeneProcessor::setStateInformation (const void* data, int sizeInBytes)
             return;
 
         const juce::String path = state.getProperty ("filePath").toString();
+        if (state.hasProperty ("ccMap"))
+        {
+            for (const auto& item : juce::StringArray::fromTokens (state.getProperty ("ccMap").toString(), ",", ""))
+            {
+                const int idx = ccIndexForParam (item.upToFirstOccurrenceOf (":", false, false));
+                if (idx >= 0)
+                    assignedCC[(size_t) idx].store (item.fromFirstOccurrenceOf (":", false, false).getIntValue());
+            }
+        }
         apvts.replaceState (state);
         if (auto* rec = apvts.getParameter ("record"))
             rec->setValueNotifyingHost (0.0f);

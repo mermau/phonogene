@@ -836,6 +836,14 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     setupToggle (tExtended, aExtended, "extended", String::fromUTF8 ("ÉTENDU"));
     tRecord.setComponentID ("rec");
 
+    registerCC (kStart.slider, "loopStart");   registerCC (kLength.slider, "loopLength");
+    registerCC (kInertia.slider, "inertia");   registerCC (kLevel.slider, "level");
+    registerCC (kWow.slider, "wow");           registerCC (kHiss.slider, "hiss");
+    registerCC (kDrive.slider, "drive");       registerCC (kCoulisse.slider, "coulisse");
+    registerCC (kMode.slider, "mode");         registerCC (kSource.slider, "source");
+    registerCC (tRecord, "record");            registerCC (tMonitor, "monitor");
+    registerCC (tRestart, "restart");          registerCC (tExtended, "extended");
+
     addAndMakeVisible (loadButton);
     loadButton.onClick = [this] { openFileChooser(); };
 
@@ -916,6 +924,23 @@ void PhonogeneEditor::paint (Graphics& g)
 
 void PhonogeneEditor::paintOverChildren (Graphics& g)
 {
+    // MIDI learn in corso: cornice sul comando e istruzione
+    if (const int learn = proc.getLearnIndex(); learn >= 0)
+        if (auto* c = componentForCCIndex (learn))
+        {
+            const float pulse = 0.55f + 0.45f * std::sin ((float) Time::getMillisecondCounter() * 0.008f);
+            const auto b = c->getBounds().toFloat().expanded (4.0f);
+            g.setColour (Col::amber.withAlpha (pulse));
+            g.drawRoundedRectangle (b, 6.0f, 2.5f);
+            auto banner = Rectangle<float> (b.getCentreX() - 110.0f, b.getY() - 26.0f, 220.0f, 20.0f)
+                              .constrainedWithin (getLocalBounds().toFloat().reduced (4.0f));
+            g.setColour (Colour (0xff1d1d1c).withAlpha (0.9f));
+            g.fillRoundedRectangle (banner, 4.0f);
+            g.setColour (Col::amber);
+            g.setFont (labelFont (9.5f));
+            g.drawText ("MIDI LEARN  :  BOUGEZ UNE COMMANDE", banner, Justification::centred);
+        }
+
     auto labelUnder = [&] (const Knob& k, float size = 9.5f)
     {
         const auto b = k.slider.getBounds().toFloat();
@@ -990,11 +1015,69 @@ void PhonogeneEditor::resized()
     tMonitor.setBounds       (dx + 128, 262, 56, 94);
 }
 
+void PhonogeneEditor::registerCC (Component& c, const String& paramId)
+{
+    ccControls.push_back ({ &c, paramId });
+    c.addMouseListener (this, false);
+}
+
+Component* PhonogeneEditor::componentForCCIndex (int index) const
+{
+    if (index < 0 || index >= PhonogeneProcessor::numCCTargets) return nullptr;
+    for (const auto& [comp, id] : ccControls)
+        if (id == PhonogeneProcessor::ccTargets[index].paramId) return comp;
+    return nullptr;
+}
+
+void PhonogeneEditor::mouseDown (const MouseEvent& e)
+{
+    if (! e.mods.isPopupMenu()) return;
+    for (const auto& [comp, id] : ccControls)
+        if (e.eventComponent == comp || comp->isParentOf (e.eventComponent))
+        {
+            showCCMenu (*comp, id);
+            return;
+        }
+}
+
+void PhonogeneEditor::showCCMenu (Component& c, const String& paramId)
+{
+    const int idx = proc.ccIndexForParam (paramId);
+    if (idx < 0) return;
+    const int cc = proc.getAssignedCC (idx);
+
+    PopupMenu m;
+    m.setLookAndFeel (&getLookAndFeel());
+    m.addSectionHeader (cc >= 0 ? "CC " + String (cc) : String ("Aucun CC"));
+    m.addItem (1, "MIDI learn");
+    m.addItem (2, "Oublier le CC", cc >= 0);
+    m.addSeparator();
+    m.addItem (3, String::fromUTF8 ("Rétablir les CC par défaut"));
+    if (proc.getLearnIndex() >= 0)
+        m.addItem (4, "Annuler le MIDI learn");
+
+    m.showMenuAsync (PopupMenu::Options().withTargetComponent (&c),
+                     [this, idx] (int r)
+                     {
+                         if (r == 1) proc.startLearn (idx);
+                         if (r == 2) proc.forgetCC (idx);
+                         if (r == 3) proc.resetDefaultCCs();
+                         if (r == 4) proc.cancelLearn();
+                         repaint();
+                     });
+}
+
 void PhonogeneEditor::timerCallback()
 {
     deck.advance (1.0f / 30.0f);
     const bool coulisseMode = (int) proc.apvts.getRawParameterValue ("mode")->load() == 1;
     kCoulisse.slider.setAlpha (coulisseMode ? 1.0f : 0.5f);
+    tExtended.setAlpha (coulisseMode ? 0.5f : 1.0f);    // in coulisse l'altezza del tasto non conta
+
+    const int learn = proc.getLearnIndex();
+    if (learn != lastLearn || learn >= 0)
+        repaint();
+    lastLearn = learn;
     deck.repaint();
     strip.repaint();
     keyboard.repaint();

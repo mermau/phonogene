@@ -167,6 +167,40 @@ int main (int argc, char** argv)
     setParam (p, "coulisse", 1.0f);
     setParam (p, "mode", 0.0f);
 
+    // CC MIDI: assegnazione predefinita e MIDI learn
+    {
+        MidiBuffer m;
+        m.addEvent (MidiMessage::controllerEvent (1, 20, 64), 0);   // DÉBUT
+        m.addEvent (MidiMessage::controllerEvent (1, 27, 127), 0);  // MODE -> universel
+        r.run (0.02, {}, m);
+        p.applyPendingCCs();
+        check ("CC20 -> DEBUT", p.apvts.getRawParameterValue ("loopStart")->load(), 64.0 / 127.0, 0.01);
+        check ("CC27 -> MODE", p.apvts.getRawParameterValue ("mode")->load(), 2.0, 0.0);
+
+        const int hissIdx = p.ccIndexForParam ("hiss");
+        p.startLearn (hissIdx);
+        MidiBuffer l; l.addEvent (MidiMessage::controllerEvent (1, 74, 127), 0);
+        r.run (0.02, {}, l);
+        p.applyPendingCCs();
+        check ("learn: SOUFFLE su CC74", p.getAssignedCC (hissIdx), 74, 0);
+        check ("learn: valore applicato", p.apvts.getRawParameterValue ("hiss")->load(), 1.0, 0.001);
+        p.resetDefaultCCs();
+        setParam (p, "loopStart", 0.0f);
+        setParam (p, "mode", 0.0f);
+        setParam (p, "hiss", 0.0f);
+        r.run (0.05);
+    }
+
+    // testo dei valori a due decimali
+    for (auto id : { "loopStart", "loopLength", "inertia", "level", "wow", "hiss", "drive" })
+    {
+        auto* prm = p.apvts.getParameter (id);
+        const auto txt = prm->getText (prm->getValue(), 0);
+        const bool ok = txt.fromFirstOccurrenceOf (".", false, false).length() == 2;
+        std::cout << (ok ? "OK   " : "FAIL ") << id << " -> \"" << txt << "\"\n";
+        if (! ok) ++failures;
+    }
+
     // tastiera del controller, ottava di C3 (nota MIDI 60 in Live e Logic): ogni tasto bianco e nero
     {
         r.run (0.3, {}, note (64, false)); // rilascia il MI tenuto dalla prova precedente
