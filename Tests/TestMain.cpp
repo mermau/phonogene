@@ -157,7 +157,7 @@ int main (int argc, char** argv)
     r.run (0.6);
 
     std::unique_ptr<AudioProcessorEditor> ed (p.createEditor());
-    ed->setSize (1000, 660);
+    ed->setSize (1000, 740);
     for (int i = 0; i < 20; ++i)
         if (auto* deck = dynamic_cast<PhonogeneEditor*> (ed.get())) { (void) deck; }
 

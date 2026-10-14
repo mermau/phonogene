@@ -6,11 +6,14 @@ namespace
 
     namespace Col
     {
-        const Colour enamel     { 0xff7c8576 };  // smalto grigio-verde martellato
-        const Colour enamelDark { 0xff4b5249 };
-        const Colour deck       { 0xff3f453e };
-        const Colour engrave    { 0xffe9e4d4 };
-        const Colour engraveDim { 0xffb9b5a6 };
+        const Colour enamel     { 0xffcdcbc2 };  // smalto grigio chiaro della macchina
+        const Colour enamelDark { 0xffa9a79e };
+        const Colour plate      { 0xffdad8cf };
+        const Colour well       { 0xffc9c7be };
+        const Colour engrave    { 0xff262624 };  // serigrafia nera
+        const Colour engraveDim { 0xff5c5b55 };
+        const Colour stripText  { 0xffb9b5a6 };
+        const Colour cream      { 0xffeae6da };
         const Colour bakelite   { 0xff141210 };
         const Colour tape       { 0xff5b3a22 };
         const Colour tapeLight  { 0xff8a6142 };
@@ -27,12 +30,12 @@ namespace
         return Font (FontOptions (size, bold ? Font::bold : Font::plain)).withExtraKerningFactor (0.12f);
     }
 
-    // testo inciso: ombra scura sotto, riempimento chiaro sopra
+    // serigrafia: inchiostro scuro con un leggero riflesso chiaro sotto
     void engraved (Graphics& g, const String& text, Rectangle<float> r, float size,
                    Justification j = Justification::centred, Colour c = Col::engrave, bool bold = true)
     {
         g.setFont (labelFont (size, bold));
-        g.setColour (Colours::black.withAlpha (0.45f));
+        g.setColour (Colours::white.withAlpha (0.35f));
         g.drawText (text, r.translated (0.0f, 1.0f), j, false);
         g.setColour (c);
         g.drawText (text, r, j, false);
@@ -102,9 +105,12 @@ void PhonoLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h
     const float kr = r * 0.72f;
     const float angle = startAngle + pos * (endAngle - startAngle);
 
-    // ombra
-    g.setColour (Colours::black.withAlpha (0.45f));
-    g.fillEllipse (Rectangle<float> (kr * 2.1f, kr * 2.1f).withCentre (c.translated (2.5f, 4.0f)));
+    // ombra (solo per le manopole rotonde; il selettore proietta la propria forma)
+    if (! selector)
+    {
+        g.setColour (Colours::black.withAlpha (0.35f));
+        g.fillEllipse (Rectangle<float> (kr * 2.05f, kr * 2.05f).withCentre (c.translated (2.5f, 4.0f)));
+    }
 
     if (selector)
     {
@@ -116,12 +122,14 @@ void PhonoLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h
         chicken.quadraticTo (-kr * 0.38f, -kr * 0.2f, 0.0f, -kr * 1.05f);
         chicken.closeSubPath();
         chicken.applyTransform (AffineTransform::rotation (angle).translated (c));
+        g.setColour (Colours::black.withAlpha (0.3f));
+        g.fillPath (chicken, AffineTransform::translation (2.5f, 3.5f));
         ColourGradient grad (Colour (0xff3a3532), c.x - kr, c.y - kr, Col::bakelite, c.x + kr, c.y + kr, false);
         g.setGradientFill (grad);
         g.fillPath (chicken);
         g.setColour (Colours::white.withAlpha (0.12f));
         g.strokePath (chicken, PathStrokeType (1.0f));
-        g.setColour (Col::engrave);
+        g.setColour (Col::cream);
         g.drawLine (Line<float> (c.getPointOnCircumference (kr * 0.2f, angle),
                                  c.getPointOnCircumference (kr * 0.9f, angle)), 2.2f);
         return;
@@ -146,7 +154,7 @@ void PhonoLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h
     g.fillEllipse (Rectangle<float> (dr * 0.9f, dr * 0.5f).withCentre (c.translated (-dr * 0.2f, -dr * 0.45f)));
 
     // indice
-    g.setColour (Col::engrave);
+    g.setColour (Col::cream);
     g.drawLine (Line<float> (c.getPointOnCircumference (dr * 0.25f, angle), c.getPointOnCircumference (kr * 0.97f, angle)), 2.4f);
 }
 
@@ -216,23 +224,107 @@ void PhonoLookAndFeel::drawToggleButton (Graphics& g, ToggleButton& b, bool, boo
     }
     else
     {
-        // interruttore a levetta cromato su dado
-        const auto nut = Rectangle<float> (20.0f, 20.0f).withCentre (c);
-        ColourGradient ng (Col::chrome, nut.getX(), nut.getY(), Colour (0xff6d716e), nut.getRight(), nut.getBottom(), false);
-        g.setGradientFill (ng);
-        g.fillEllipse (nut);
-        g.setColour (Colour (0xff3a3d3b));
-        g.drawEllipse (nut, 1.0f);
+        // interruttore a levetta in acciaio: rondella, dado esagonale, boccola filettata, leva conica
+        const float pi = MathConstants<float>::pi;
 
-        const auto tip = c.translated (0.0f, on ? -17.0f : 17.0f);
-        g.setColour (Colours::black.withAlpha (0.3f));
-        g.drawLine (Line<float> (c.translated (2.0f, 3.0f), tip.translated (2.0f, 3.0f)), 5.0f);
-        g.setColour (Col::chrome);
-        g.drawLine (Line<float> (c, tip), 5.0f);
-        g.setColour (Colours::white);
-        g.fillEllipse (Rectangle<float> (8.0f, 8.0f).withCentre (tip));
-        g.setColour (Colour (0xff5c605d));
-        g.drawEllipse (Rectangle<float> (8.0f, 8.0f).withCentre (tip), 0.8f);
+        // segni serigrafati I / O
+        engraved (g, "I", Rectangle<float> (12.0f, 10.0f).withCentre (c.translated (0.0f, -29.0f)), 8.0f);
+        engraved (g, "O", Rectangle<float> (12.0f, 10.0f).withCentre (c.translated (0.0f, 29.0f)), 8.0f);
+
+        // rondella dentata
+        {
+            const float rw = 13.5f;
+            ColourGradient wg (Colour (0xffe9eae6), c.x - rw, c.y - rw, Colour (0xff8d908b), c.x + rw, c.y + rw, false);
+            g.setColour (Colours::black.withAlpha (0.22f));
+            g.fillEllipse (Rectangle<float> (2 * rw, 2 * rw).withCentre (c.translated (1.5f, 2.0f)));
+            g.setGradientFill (wg);
+            g.fillEllipse (Rectangle<float> (2 * rw, 2 * rw).withCentre (c));
+            g.setColour (Colour (0xff6b6e69));
+            g.drawEllipse (Rectangle<float> (2 * rw, 2 * rw).withCentre (c), 0.7f);
+        }
+
+        // dado esagonale con facce illuminate dall'alto a sinistra
+        {
+            const float rn = 10.5f;
+            Point<float> v[6];
+            for (int i = 0; i < 6; ++i)
+                v[i] = c.getPointOnCircumference (rn, pi / 6.0f + (float) i * pi / 3.0f);
+            const Point<float> light { -0.6f, -0.8f };
+            for (int i = 0; i < 6; ++i)
+            {
+                const auto a = v[i], b2 = v[(i + 1) % 6];
+                const auto mid = (a + b2) * 0.5f - c;
+                const float len = std::sqrt (mid.x * mid.x + mid.y * mid.y);
+                const float lit = jlimit (0.0f, 1.0f, 0.5f + 0.5f * (mid.x * light.x + mid.y * light.y) / len);
+                Path tri;
+                tri.addTriangle (c, a, b2);
+                g.setColour (Colour (0xff6f726d).interpolatedWith (Colour (0xfff4f5f2), lit));
+                g.fillPath (tri);
+            }
+            Path hex;
+            hex.startNewSubPath (v[0]);
+            for (int i = 1; i < 6; ++i) hex.lineTo (v[i]);
+            hex.closeSubPath();
+            g.setColour (Colour (0xff4c4f4a));
+            g.strokePath (hex, PathStrokeType (0.8f));
+            // smusso interno del dado
+            g.setColour (Colour (0xffc9cbc6));
+            g.fillEllipse (Rectangle<float> (15.0f, 15.0f).withCentre (c));
+        }
+
+        // boccola filettata
+        {
+            ColourGradient bg (Colour (0xffdfe0dc), c.x - 6, c.y - 6, Colour (0xff5d605b), c.x + 6, c.y + 6, false);
+            g.setGradientFill (bg);
+            g.fillEllipse (Rectangle<float> (12.0f, 12.0f).withCentre (c));
+            g.setColour (Colour (0xff545752));
+            for (float rr : { 6.0f, 4.6f })
+                g.drawEllipse (Rectangle<float> (2 * rr, 2 * rr).withCentre (c), 0.6f);
+            g.setColour (Colour (0xff1e1f1d));
+            g.fillEllipse (Rectangle<float> (5.0f, 5.0f).withCentre (c));
+        }
+
+        // leva conica cromata con estremità arrotondata
+        {
+            const float dir = on ? -1.0f : 1.0f;
+            const float L = 22.0f;
+            const auto tip = c.translated (0.0f, dir * L);
+
+            auto lever = [&] (Point<float> base, Point<float> end, float wb, float wt)
+            {
+                Path p;
+                p.startNewSubPath (base.translated (-wb, 0));
+                p.lineTo (end.translated (-wt, 0));
+                p.lineTo (end.translated (wt, 0));
+                p.lineTo (base.translated (wb, 0));
+                p.closeSubPath();
+                return p;
+            };
+
+            // ombra
+            g.setColour (Colours::black.withAlpha (0.28f));
+            g.fillPath (lever (c.translated (3.0f, 3.0f), tip.translated (4.5f, 4.0f), 2.8f, 2.0f));
+            g.fillEllipse (Rectangle<float> (8.0f, 8.0f).withCentre (tip.translated (4.5f, 4.0f)));
+
+            const auto body = lever (c, tip, 2.8f, 1.9f);
+            ColourGradient lg (Colour (0xff6a6d68), c.x - 3.0f, 0, Colour (0xff767974), c.x + 3.0f, 0, false);
+            lg.addColour (0.35, Colour (0xfff7f8f5));
+            lg.addColour (0.55, Colour (0xffc4c6c1));
+            g.setGradientFill (lg);
+            g.fillPath (body);
+            g.setColour (Colour (0xff4e514c));
+            g.strokePath (body, PathStrokeType (0.5f));
+
+            // estremità a oliva
+            auto ball = Rectangle<float> (7.5f, 8.5f).withCentre (tip);
+            ColourGradient tg (Colours::white, ball.getX() + 1.5f, ball.getY() + 1.5f, Colour (0xff70736e), ball.getRight(), ball.getBottom(), true);
+            g.setGradientFill (tg);
+            g.fillEllipse (ball);
+            g.setColour (Colour (0xff4e514c));
+            g.drawEllipse (ball, 0.6f);
+            g.setColour (Colours::white.withAlpha (0.9f));
+            g.fillEllipse (Rectangle<float> (2.2f, 2.2f).withCentre (tip.translated (-1.3f, -1.6f)));
+        }
     }
 
     engraved (g, b.getButtonText(), area.removeFromBottom (16.0f), 9.5f);
@@ -252,7 +344,9 @@ void PhonoLookAndFeel::drawButtonBackground (Graphics& g, Button& b, const Colou
 
 void PhonoLookAndFeel::drawButtonText (Graphics& g, TextButton& b, bool, bool down)
 {
-    engraved (g, b.getButtonText(), b.getLocalBounds().toFloat().translated (0.0f, down ? 1.5f : 0.0f), 11.0f);
+    g.setFont (labelFont (11.0f));
+    g.setColour (Col::cream);
+    g.drawText (b.getButtonText(), b.getLocalBounds().toFloat().translated (0.0f, down ? 1.5f : 0.0f), Justification::centred);
 }
 
 //==============================================================================
@@ -265,34 +359,124 @@ void DeckView::advance (float dt)
     if (capstanAngle > MathConstants<float>::twoPi) capstanAngle -= MathConstants<float>::twoPi;
 }
 
+namespace
+{
+    // disco metallico visto dall'alto (capstan, perni, rulli)
+    void metalTop (Graphics& g, Point<float> c, float r, float rot = 0.0f, bool mark = true)
+    {
+        auto b = Rectangle<float> (2 * r, 2 * r).withCentre (c);
+        g.setColour (Colours::black.withAlpha (0.26f));
+        g.fillEllipse (b.translated (r * 0.15f + 1.5f, r * 0.2f + 2.0f));
+        ColourGradient gr (Colour (0xfffbfbf8), c.x - r * 0.5f, c.y - r * 0.6f, Colour (0xff868884), c.x + r, c.y + r, true);
+        g.setGradientFill (gr);
+        g.fillEllipse (b);
+        g.setColour (Colour (0xff666864));
+        g.drawEllipse (b, 0.9f);
+        g.setColour (Colour (0xffa2a49f));
+        g.drawEllipse (b.reduced (r * 0.33f), 0.8f);
+        g.setColour (Colour (0xff595b57));
+        g.fillEllipse (Rectangle<float> (r * 0.36f, r * 0.36f).withCentre (c));
+        if (mark)
+        {
+            g.setColour (Colour (0xff4f514d).withAlpha (0.7f));
+            g.drawLine (Line<float> (c.getPointOnCircumference (r * 0.3f, rot), c.getPointOnCircumference (r * 0.62f, rot)), 1.3f);
+        }
+    }
+
+    void rubberTop (Graphics& g, Point<float> c, float r, float rot)
+    {
+        auto b = Rectangle<float> (2 * r, 2 * r).withCentre (c);
+        g.setColour (Colours::black.withAlpha (0.25f));
+        g.fillEllipse (b.translated (2.0f, 2.5f));
+        ColourGradient gr (Colour (0xff3d3d3b), c.x - r * 0.4f, c.y - r * 0.5f, Colour (0xff111110), c.x + r, c.y + r, true);
+        g.setGradientFill (gr);
+        g.fillEllipse (b);
+        metalTop (g, c, r * 0.42f, rot, false);
+    }
+
+    // Geometria dell'anello: 12 stazioni (capstan + rullo pressore) nel pozzetto,
+    // testina e perno tenditore nel varco in alto.
+    struct Ring
+    {
+        Point<float> c;
+        float R, capR[12], ang[12];
+        Point<float> cap[12], pinch[12], head, guideL, guideR, inner, tension;
+        float pinchR = 10.0f, tensionR = 12.0f;
+        Path tape;
+
+        Ring (Point<float> centre, float radius, int active) : c (centre), R (radius)
+        {
+            for (int k = 0; k < 12; ++k)
+            {
+                ang[k] = degreesToRadians (34.0f + 292.0f * (float) k / 11.0f);
+                capR[k] = 7.0f * std::pow (2.0f, (float) k / 12.0f);
+                cap[k] = c.getPointOnCircumference (R, ang[k]);
+                pinch[k] = c.getPointOnCircumference (R + capR[k] + 3.0f + pinchR + (k == active ? 1.0f : 8.0f), ang[k]);
+            }
+            guideL  = c.getPointOnCircumference (R + 6.0f, degreesToRadians (341.0f));
+            head    = c.getPointOnCircumference (R + 1.0f, degreesToRadians (352.0f));
+            guideR  = c.getPointOnCircumference (R + 6.0f, degreesToRadians (19.0f));
+            inner   = c.getPointOnCircumference (R * 0.6f, degreesToRadians (9.0f));
+            tension = c.translated (0.0f, -R * 0.12f);
+
+            // il nastro passa all'esterno dei capstan, contro i rulli pressori
+            Path poly;
+            poly.startNewSubPath (c.getPointOnCircumference (R + capR[0] + 1.5f, ang[0]));
+            for (int k = 1; k < 12; ++k)
+                poly.lineTo (c.getPointOnCircumference (R + capR[k] + 1.5f, ang[k]));
+            poly.lineTo (guideL.getPointOnCircumference (5.0f, degreesToRadians (341.0f)));
+            poly.lineTo (head.getPointOnCircumference (2.0f, degreesToRadians (352.0f)));
+            poly.lineTo (tension.translated (-tensionR - 1.5f, -4.0f));
+            poly.lineTo (tension.translated (-tensionR * 0.6f, tensionR + 1.0f));
+            poly.lineTo (tension.translated (tensionR * 0.6f, tensionR + 1.0f));
+            poly.lineTo (tension.translated (tensionR + 1.5f, -4.0f));
+            poly.lineTo (inner.translated (5.0f, 0.0f));
+            poly.lineTo (guideR.getPointOnCircumference (5.0f, degreesToRadians (19.0f)));
+            poly.closeSubPath();
+
+            // nastro morbido: curve dolci attorno a perni e capstan, niente angoli vivi
+            tape = poly.createPathWithRoundedCorners (22.0f);
+        }
+    };
+}
+
 void DeckView::paint (Graphics& g)
 {
     const auto area = getLocalBounds().toFloat();
     const auto& disp = proc.engine.display;
     const int mode = (int) proc.apvts.getRawParameterValue ("mode")->load();
-    const int activeKey = disp.activeKey.load();
     const float speed = disp.speed.load();
+    const int activeKey = (mode != 1 && speed > 0.001f) ? disp.activeKey.load() : -1;
 
-    // piastra del deck, incassata nel pannello
-    g.setColour (Colours::black.withAlpha (0.5f));
+    // piano superiore del cabinet (smalto grigio chiaro)
+    g.setColour (Colours::black.withAlpha (0.3f));
     g.fillRoundedRectangle (area, 6.0f);
-    auto plate = area.reduced (3.0f);
-    ColourGradient pg (Col::deck.brighter (0.12f), 0.0f, 0.0f, Col::deck.darker (0.25f), 0.0f, plate.getBottom(), false);
+    auto plate = area.reduced (2.0f);
+    ColourGradient pg (Col::plate.brighter (0.04f), 0.0f, 0.0f, Col::plate.darker (0.08f), 0.0f, plate.getBottom(), false);
     g.setGradientFill (pg);
     g.fillRoundedRectangle (plate, 5.0f);
+    g.setColour (Colours::white.withAlpha (0.55f));
+    g.drawLine (plate.getX() + 6, plate.getY() + 0.5f, plate.getRight() - 6, plate.getY() + 0.5f, 1.0f);
 
-    // zona comandi a destra (smalto più chiaro)
+    // zona comandi a destra, con la targhetta in acciaio
     auto ctrl = plate.removeFromRight (226.0f).reduced (8.0f);
-    g.setColour (Col::enamel.withAlpha (0.35f));
+    g.setColour (Colours::black.withAlpha (0.06f));
     g.fillRoundedRectangle (ctrl, 4.0f);
-    g.setColour (Colours::black.withAlpha (0.35f));
+    g.setColour (Colours::black.withAlpha (0.18f));
     g.drawRoundedRectangle (ctrl, 4.0f, 1.0f);
 
-    // targhetta in alluminio
     auto tag = Rectangle<float> (ctrl.getX() + 10.0f, ctrl.getY() + 10.0f, ctrl.getWidth() - 20.0f, 66.0f);
-    ColourGradient tg (Colour (0xffd9dbd6), tag.getX(), tag.getY(), Colour (0xff9fa39f), tag.getRight(), tag.getBottom(), false);
+    g.setColour (Colours::black.withAlpha (0.25f));
+    g.fillRoundedRectangle (tag.translated (1.5f, 2.0f), 3.0f);
+    ColourGradient tg (Colour (0xffe2e4df), tag.getX(), tag.getY(), Colour (0xff9da19d), tag.getRight(), tag.getBottom(), false);
     g.setGradientFill (tg);
     g.fillRoundedRectangle (tag, 3.0f);
+    // spazzolatura dell'acciaio
+    for (float y = tag.getY() + 2.0f; y < tag.getBottom() - 2.0f; y += 2.0f)
+    {
+        g.setColour (Colours::white.withAlpha (0.08f));
+        g.drawHorizontalLine ((int) y, tag.getX() + 2.0f, tag.getRight() - 2.0f);
+    }
     g.setColour (Colour (0xff2a2b29));
     g.drawRoundedRectangle (tag, 3.0f, 1.0f);
     g.setFont (labelFont (20.0f));
@@ -306,109 +490,135 @@ void DeckView::paint (Graphics& g)
                     tag.getBottomLeft().translated (6, -6), tag.getBottomRight().translated (-6, -6) })
         screw (g, p, 2.6f, 0.6f);
 
-    // ---- meccanica del nastro ----
-    const float runY = 206.0f;
-    const Point<float> leftRoller { 58.0f, 168.0f }, rightRoller { 696.0f, 168.0f }, tension { 380.0f, 92.0f };
-    const float guideR = 38.0f, tensionR = 13.0f;
-
-    // posizione dei capstan: diametro proporzionale alla velocità del tasto
-    float capX[12], capR[12];
-    for (int k = 0; k < 12; ++k)
+    // ---- pozzetto circolare ----
+    const Point<float> wc { 212.0f, area.getCentreY() };
+    const float wellR = 174.0f;
     {
-        capX[k] = 168.0f + (float) k * 44.0f;
-        capR[k] = 8.0f * std::pow (2.0f, (float) k / 12.0f);
+        auto wb = Rectangle<float> (2 * wellR, 2 * wellR).withCentre (wc);
+        g.setColour (Colour (0xff2b2b29));
+        g.fillEllipse (wb.expanded (4.0f));
+        ColourGradient wg (Col::well.darker (0.2f), wc.x, wc.y - wellR, Col::well.brighter (0.04f), wc.x, wc.y + wellR * 0.3f, false);
+        g.setGradientFill (wg);
+        g.fillEllipse (wb);
+        ColourGradient inner (Colours::transparentBlack, wc.x, wc.y, Colours::black.withAlpha (0.16f), wc.x + wellR, wc.y, true);
+        g.setGradientFill (inner);
+        g.fillEllipse (wb);
     }
 
-    // percorso del nastro ad anello
-    Path tapePath;
-    tapePath.startNewSubPath (leftRoller.x, runY);
-    tapePath.lineTo (rightRoller.x, runY);
-    tapePath.addCentredArc (rightRoller.x, rightRoller.y, guideR, guideR, 0.0f, MathConstants<float>::pi, 0.25f, false);
-    tapePath.lineTo (tension.x + 10.0f, tension.y - tensionR);
-    tapePath.addCentredArc (tension.x, tension.y, tensionR, tensionR, 0.0f, 0.75f, -0.75f, false);
-    tapePath.lineTo (leftRoller.getPointOnCircumference (guideR, -0.25f));
-    tapePath.addCentredArc (leftRoller.x, leftRoller.y, guideR, guideR, 0.0f, -0.25f, -MathConstants<float>::pi, false);
-    tapePath.closeSubPath();
+    Ring ring (wc, 130.0f, activeKey);
 
-    // braccio tenditore
-    g.setColour (Colour (0xff2d312c));
-    g.drawLine (Line<float> (tension, { tension.x + 70.0f, tension.y + 52.0f }), 7.0f);
-    screw (g, { tension.x + 70.0f, tension.y + 52.0f }, 5.0f, 0.3f);
+    // braccio del perno tenditore
+    g.setColour (Colour (0xff6d6f6b));
+    g.drawLine (Line<float> (wc, ring.tension), 5.0f);
+    metalTop (g, wc, 9.0f, 0.0f, false);
 
-    // rulli guida e tenditore
-    chromeRoller (g, leftRoller, guideR - 3.0f, tapePhase / guideR, 0.28f);
-    chromeRoller (g, rightRoller, guideR - 3.0f, tapePhase / guideR, 0.28f);
-    chromeRoller (g, tension, tensionR - 3.0f, tapePhase / tensionR);
-
-    // ombra e nastro
-    g.setColour (Colours::black.withAlpha (0.35f));
-    g.strokePath (tapePath, PathStrokeType (6.0f), AffineTransform::translation (2.0f, 3.0f));
+    // nastro con ombra, segni di scorrimento e giunta
+    g.setColour (Colours::black.withAlpha (0.28f));
+    g.strokePath (ring.tape, PathStrokeType (4.5f, PathStrokeType::curved, PathStrokeType::rounded), AffineTransform::translation (1.5f, 2.5f));
     g.setColour (Col::tape);
-    g.strokePath (tapePath, PathStrokeType (5.5f));
-
-    // giunte e segni sul nastro che scorrono con la velocità reale
-    const float len = tapePath.getLength();
-    const float spacing = 26.0f;
-    for (float d = std::fmod (tapePhase, spacing); d < len; d += spacing)
+    g.strokePath (ring.tape, PathStrokeType (4.0f, PathStrokeType::curved, PathStrokeType::rounded));
+    const float len = ring.tape.getLength();
+    for (float d = std::fmod (tapePhase, 22.0f); d < len; d += 22.0f)
     {
-        const auto p = tapePath.getPointAlongPath (d);
-        g.setColour (Col::tapeLight.withAlpha (0.55f));
-        g.fillEllipse (Rectangle<float> (3.0f, 3.0f).withCentre (p));
+        g.setColour (Col::tapeLight.withAlpha (0.7f));
+        g.fillEllipse (Rectangle<float> (2.6f, 2.6f).withCentre (ring.tape.getPointAlongPath (d)));
     }
-    // giunta (pezzo di nastro adesivo bianco), un riferimento visivo dell'anello
     {
-        const auto p = tapePath.getPointAlongPath (std::fmod (tapePhase * 0.999f + 40.0f, len));
-        g.setColour (Colour (0xffe9e5da));
-        g.fillRect (Rectangle<float> (7.0f, 7.0f).withCentre (p));
+        const auto sp = ring.tape.getPointAlongPath (std::fmod (tapePhase + 60.0f, len));
+        g.setColour (Colour (0xffeeeae0));
+        g.fillRect (Rectangle<float> (5.0f, 5.0f).withCentre (sp));
     }
 
-    // testina di lettura fissa
-    {
-        auto head = Rectangle<float> (36.0f, 34.0f).withCentre ({ 116.0f, runY - 20.0f });
-        g.setColour (Colours::black.withAlpha (0.4f));
-        g.fillRoundedRectangle (head.translated (2.0f, 3.0f), 4.0f);
-        ColourGradient hg (Col::chrome, head.getX(), head.getY(), Colour (0xff6e7370), head.getRight(), head.getBottom(), false);
-        g.setGradientFill (hg);
-        g.fillRoundedRectangle (head, 4.0f);
-        g.setColour (Colour (0xff2b2d2b));
-        g.drawRoundedRectangle (head, 4.0f, 1.0f);
-        g.fillRect (Rectangle<float> (1.5f, 9.0f).withCentre ({ head.getCentreX(), head.getBottom() - 4.5f }));
-        engraved (g, String::fromUTF8 ("TÊTE"), { head.getX() - 10.0f, head.getY() - 18.0f, head.getWidth() + 20.0f, 14.0f }, 8.5f,
-                  Justification::centred, Col::engraveDim);
-    }
-
-    // capstan e rulli pressori
+    // capstan (girano sempre) e rulli pressori (girano solo innestati)
     for (int k = 0; k < 12; ++k)
     {
-        const bool engaged = mode != 1 && k == activeKey && speed > 0.001f;
-        const Point<float> cc { capX[k], runY - capR[k] - 3.0f };
-        const float rr = 10.0f;
-        const Point<float> rc { capX[k], runY + rr + (engaged ? 3.0f : 11.0f) };
+        metalTop (g, ring.cap[k], ring.capR[k], capstanAngle + (float) k);
+        rubberTop (g, ring.pinch[k], ring.pinchR, k == activeKey ? tapePhase / ring.pinchR : (float) k);
+        if (k == activeKey)
+        {
+            g.setColour (Col::amber.withAlpha (0.85f));
+            g.drawEllipse (Rectangle<float> (2 * ring.pinchR + 6, 2 * ring.pinchR + 6).withCentre (ring.pinch[k]), 1.5f);
+        }
+    }
+    metalTop (g, ring.guideL, 5.0f, tapePhase / 5.0f);
+    metalTop (g, ring.guideR, 5.0f, tapePhase / 5.0f);
+    metalTop (g, ring.inner, 5.0f, tapePhase / 5.0f);
+    metalTop (g, ring.tension, ring.tensionR - 2.0f, tapePhase / ring.tensionR);
 
-        chromeRoller (g, cc, capR[k], capstanAngle * 1.0f + (float) k, 0.3f);
-
-        // rullo pressore in gomma
-        g.setColour (Colours::black.withAlpha (0.35f));
-        g.fillEllipse (Rectangle<float> (rr * 2, rr * 2).withCentre (rc.translated (2.0f, 3.0f)));
-        g.setColour (engaged ? Colour (0xff121212) : Colour (0xff222222));
-        g.fillEllipse (Rectangle<float> (rr * 2, rr * 2).withCentre (rc));
-        g.setColour (Colour (0xff8c8f8d));
-        g.fillEllipse (Rectangle<float> (5.0f, 5.0f).withCentre (rc));
-
-        engraved (g, String::fromUTF8 (noteNames[k]), { capX[k] - 22.0f, runY + 36.0f, 44.0f, 14.0f }, 8.5f, Justification::centred,
-                  engaged ? Col::amber : Col::engraveDim);
+    // testina di lettura con schermo
+    {
+        Graphics::ScopedSaveState s (g);
+        g.addTransform (AffineTransform::rotation (degreesToRadians (352.0f), ring.head.x, ring.head.y));
+        auto hb = Rectangle<float> (22.0f, 15.0f).withCentre (ring.head.translated (0.0f, -10.0f));
+        g.setColour (Colours::black.withAlpha (0.3f));
+        g.fillRoundedRectangle (hb.translated (2, 3), 2.0f);
+        ColourGradient hg (Colour (0xfff2f2ef), hb.getX(), hb.getY(), Colour (0xff6e706c), hb.getRight(), hb.getBottom(), false);
+        g.setGradientFill (hg);
+        g.fillRoundedRectangle (hb, 2.0f);
+        g.setColour (Colour (0xff2b2b29));
+        g.drawRoundedRectangle (hb, 2.0f, 0.8f);
+        g.fillRect (Rectangle<float> (1.2f, 4.0f).withCentre ({ hb.getCentreX(), hb.getBottom() - 2.0f }));
     }
 
-    // velocità reale del nastro
-    engraved (g, "VITESSE  " + String (speed, 3).replaceCharacter ('.', ','),
-              { 26.0f, plate.getBottom() - 30.0f, 220.0f, 16.0f }, 10.0f, Justification::centredLeft, Col::engraveDim);
+    // ---- zona centrale: spie dei capstan e velocità ----
+    const float lx0 = 432.0f, lx1 = 700.0f;
+    engraved (g, "CABESTANS", { lx0, 40.0f, lx1 - lx0, 12.0f }, 8.5f, Justification::centredLeft, Col::engraveDim);
+    for (int k = 0; k < 12; ++k)
+    {
+        const float x = lx0 + 10.0f + (float) k * ((lx1 - lx0 - 20.0f) / 11.0f);
+        const Point<float> lc { x, 76.0f };
+        const bool on = k == activeKey;
+        g.setColour (Colour (0xff2a2a28));
+        g.fillEllipse (Rectangle<float> (15.0f, 15.0f).withCentre (lc));
+        if (on) { g.setColour (Col::amber.withAlpha (0.3f)); g.fillEllipse (Rectangle<float> (22.0f, 22.0f).withCentre (lc)); }
+        g.setColour (on ? Col::amber : Col::amber.darker (2.0f));
+        g.fillEllipse (Rectangle<float> (10.0f, 10.0f).withCentre (lc));
+        g.setColour (Colours::white.withAlpha (on ? 0.6f : 0.2f));
+        g.fillEllipse (Rectangle<float> (3.5f, 3.5f).withCentre (lc.translated (-1.8f, -1.8f)));
+        engraved (g, String::fromUTF8 (noteNames[k]), Rectangle<float> (30.0f, 11.0f).withCentre (lc.translated (0.0f, 17.0f)), 7.0f);
+    }
+
+    // tachimetro del nastro
+    {
+        auto face = Rectangle<float> (lx0, 120.0f, lx1 - lx0, 140.0f);
+        g.setColour (Colour (0xff1d1d1c));
+        g.fillRoundedRectangle (face, 3.0f);
+        face = face.reduced (6.0f);
+        ColourGradient fg (Colour (0xfff8f3e2), face.getX(), face.getY(), Colour (0xffe2dac2), face.getX(), face.getBottom(), false);
+        g.setGradientFill (fg);
+        g.fillRect (face);
+        const Point<float> pivot { face.getCentreX(), face.getBottom() + 30.0f };
+        const float rad = 140.0f;
+        auto angleFor = [] (float v) { return -0.8f + 1.6f * jlimit (0.0f, 1.0f, v / 2.0f); };
+        for (int i = 0; i <= 20; ++i)
+        {
+            const float v = (float) i * 0.1f;
+            const float a = angleFor (v);
+            g.setColour (Col::engrave);
+            g.drawLine (Line<float> (pivot.getPointOnCircumference (rad * 0.78f, a),
+                                     pivot.getPointOnCircumference (rad * (i % 5 == 0 ? 0.88f : 0.83f), a)), i % 5 == 0 ? 1.4f : 0.9f);
+        }
+        const std::pair<float, const char*> marks[] = { { 0.0f, "0" }, { 0.5f, "\xc2\xbd" }, { 1.0f, "1" }, { 1.5f, "1\xc2\xbd" }, { 2.0f, "2" } };
+        for (auto [v, t] : marks)
+            engraved (g, String::fromUTF8 (t), Rectangle<float> (24.0f, 12.0f).withCentre (pivot.getPointOnCircumference (rad * 0.96f, angleFor (v))), 8.5f);
+        engraved (g, "VITESSE DU RUBAN", { face.getX(), face.getBottom() - 34.0f, face.getWidth(), 12.0f }, 8.5f);
+        engraved (g, String (speed, 3).replaceCharacter ('.', ','), { face.getX(), face.getBottom() - 20.0f, face.getWidth(), 14.0f }, 10.0f);
+        Graphics::ScopedSaveState s (g);
+        g.reduceClipRegion (face.toNearestInt());
+        g.setColour (Col::engrave);
+        g.drawLine (Line<float> (pivot.getPointOnCircumference (rad * 0.45f, angleFor (speed)),
+                                 pivot.getPointOnCircumference (rad * 0.9f, angleFor (speed))), 1.4f);
+        g.setColour (Colours::white.withAlpha (0.15f));
+        g.fillRect (face.withHeight (face.getHeight() * 0.3f));
+    }
     if (mode == 2)
-        engraved (g, String::fromUTF8 ("TÊTE ROTATIVE : PROCHAINE VERSION"),
-                  { 300.0f, plate.getBottom() - 30.0f, 400.0f, 16.0f }, 10.0f, Justification::centredRight, Col::amber);
+        engraved (g, String::fromUTF8 ("TÊTE ROTATIVE : PROCHAINE VERSION"), { lx0, 280.0f, lx1 - lx0, 14.0f }, 9.0f,
+                  Justification::centred, Col::lamp.darker (0.3f));
 
     for (auto p : { area.getTopLeft().translated (12, 12), area.getBottomLeft().translated (12, -12) })
         screw (g, p, 4.5f, 0.9f);
 }
+
 
 //==============================================================================
 void TapeStrip::paint (Graphics& g)
@@ -466,7 +676,7 @@ void TapeStrip::paint (Graphics& g)
             const float a = jmin (1.0f, peaks[bin]) * wave.getHeight() * 0.5f;
             const float x = wave.getX() + (float) px;
             const bool inside = x >= x0 && x <= x1;
-            g.setColour ((inside ? Col::amber : Col::engraveDim).withAlpha (inside ? 0.9f : 0.3f));
+            g.setColour ((inside ? Col::amber : Col::stripText).withAlpha (inside ? 0.9f : 0.3f));
             g.drawVerticalLine ((int) x, mid - a, mid + a + 1.0f);
         }
 
@@ -477,7 +687,7 @@ void TapeStrip::paint (Graphics& g)
     }
 
     g.setFont (labelFont (9.5f));
-    g.setColour (Col::engraveDim);
+    g.setColour (Col::stripText);
     g.drawText (caption, win.reduced (10.0f, 4.0f).removeFromTop (12.0f), Justification::centredLeft);
 }
 
@@ -510,16 +720,11 @@ void OctaveKeyboard::paint (Graphics& g)
     auto r = getLocalBounds().toFloat();
 
     // cassa in legno
-    ColourGradient wood (Colour (0xff5a3a24), r.getX(), r.getY(), Colour (0xff2e1d12), r.getRight(), r.getBottom(), false);
-    g.setGradientFill (wood);
+    ColourGradient frame (Col::enamelDark.brighter (0.1f), r.getX(), r.getY(), Col::enamelDark.darker (0.2f), r.getX(), r.getBottom(), false);
+    g.setGradientFill (frame);
     g.fillRoundedRectangle (r, 5.0f);
-    Random rnd (7);
-    for (int i = 0; i < 40; ++i)
-    {
-        g.setColour (Colours::black.withAlpha (0.06f + rnd.nextFloat() * 0.06f));
-        const float y = r.getY() + rnd.nextFloat() * r.getHeight();
-        g.drawLine (r.getX(), y, r.getRight(), y + rnd.nextFloat() * 6.0f - 3.0f, 0.8f);
-    }
+    g.setColour (Colours::black.withAlpha (0.3f));
+    g.drawRoundedRectangle (r, 5.0f, 1.0f);
     g.setColour (Colours::black.withAlpha (0.6f));
     g.fillRect (r.reduced (20.0f, 8.0f));
 
@@ -626,7 +831,7 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     addAndMakeVisible (loadButton);
     loadButton.onClick = [this] { openFileChooser(); };
 
-    setSize (1000, 660);
+    setSize (1000, 740);
     startTimerHz (30);
 }
 
@@ -668,11 +873,11 @@ void PhonogeneEditor::buildTexture()
         const float y = rnd.nextFloat() * (float) getHeight();
         const float r = 3.0f + rnd.nextFloat() * 7.0f;
         const bool light = rnd.nextBool();
-        g.setColour ((light ? Colours::white : Colours::black).withAlpha (0.025f + rnd.nextFloat() * 0.03f));
+        g.setColour ((light ? Colours::white : Colours::black).withAlpha (0.01f + rnd.nextFloat() * 0.015f));
         g.fillEllipse (x - r, y - r, r * 2.0f, r * 2.0f);
     }
     ColourGradient vignette (Colours::transparentBlack, getWidth() * 0.5f, getHeight() * 0.4f,
-                             Colours::black.withAlpha (0.28f), 0.0f, 0.0f, true);
+                             Colours::black.withAlpha (0.16f), 0.0f, 0.0f, true);
     g.setGradientFill (vignette);
     g.fillAll();
 }
@@ -695,8 +900,10 @@ void PhonogeneEditor::paint (Graphics& g)
         screw (g, p, 5.0f, 0.4f);
 
     // incasso della sezione inferiore
-    g.setColour (Colours::black.withAlpha (0.18f));
-    g.fillRoundedRectangle (Rectangle<float> (440.0f, 420.0f, 536.0f, 218.0f), 5.0f);
+    g.setColour (Colours::black.withAlpha (0.06f));
+    g.fillRoundedRectangle (Rectangle<float> (440.0f, 500.0f, 536.0f, 218.0f), 5.0f);
+    g.setColour (Colours::black.withAlpha (0.15f));
+    g.drawRoundedRectangle (Rectangle<float> (440.0f, 500.0f, 536.0f, 218.0f), 5.0f, 1.0f);
 }
 
 void PhonogeneEditor::paintOverChildren (Graphics& g)
@@ -746,33 +953,33 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
 
 void PhonogeneEditor::resized()
 {
-    deck.setBounds (24, 24, 952, 300);
-    strip.setBounds (24, 336, 826, 70);
-    loadButton.setBounds (862, 342, 114, 56);
+    deck.setBounds (24, 24, 952, 380);
+    strip.setBounds (24, 416, 826, 70);
+    loadButton.setBounds (862, 422, 114, 56);
 
-    keyboard.setBounds (24, 420, 404, 218);
+    keyboard.setBounds (24, 500, 404, 218);
 
     // leva
-    kCoulisse.slider.setBounds (480, 438, 44, 170);
+    kCoulisse.slider.setBounds (480, 518, 44, 170);
 
     // manopole: due file da quattro
     const int x0 = 548, cw = 106, kh = 86;
-    kStart.slider.setBounds  (x0 + cw * 0, 428, cw, kh);
-    kLength.slider.setBounds (x0 + cw * 1, 428, cw, kh);
-    kInertia.slider.setBounds(x0 + cw * 2, 428, cw, kh);
-    kLevel.slider.setBounds  (x0 + cw * 3, 428, cw, kh);
-    kWow.slider.setBounds    (x0 + cw * 0, 532, cw, kh);
-    kHiss.slider.setBounds   (x0 + cw * 1, 532, cw, kh);
-    kDrive.slider.setBounds  (x0 + cw * 2, 532, cw, kh);
-    tRestart.setBounds       (x0 + cw * 3 + 2,  540, 50, 76);
-    tExtended.setBounds      (x0 + cw * 3 + 54, 540, 50, 76);
+    kStart.slider.setBounds  (x0 + cw * 0, 508, cw, kh);
+    kLength.slider.setBounds (x0 + cw * 1, 508, cw, kh);
+    kInertia.slider.setBounds(x0 + cw * 2, 508, cw, kh);
+    kLevel.slider.setBounds  (x0 + cw * 3, 508, cw, kh);
+    kWow.slider.setBounds    (x0 + cw * 0, 612, cw, kh);
+    kHiss.slider.setBounds   (x0 + cw * 1, 612, cw, kh);
+    kDrive.slider.setBounds  (x0 + cw * 2, 612, cw, kh);
+    tRestart.setBounds       (x0 + cw * 3 + 2,  606, 50, 94);
+    tExtended.setBounds      (x0 + cw * 3 + 54, 606, 50, 94);
 
     // zona comandi del deck
     const int dx = 24 + 952 - 226;
-    kMode.slider.setBounds   (dx + 22,  132, 92, 80);
-    kSource.slider.setBounds (dx + 122, 132, 92, 80);
-    tRecord.setBounds        (dx + 40,  228, 60, 84);
-    tMonitor.setBounds       (dx + 128, 232, 56, 76);
+    kMode.slider.setBounds   (dx + 22,  150, 92, 80);
+    kSource.slider.setBounds (dx + 122, 150, 92, 80);
+    tRecord.setBounds        (dx + 40,  272, 60, 84);
+    tMonitor.setBounds       (dx + 128, 262, 56, 94);
 }
 
 void PhonogeneEditor::timerCallback()
