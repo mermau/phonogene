@@ -148,7 +148,30 @@ int main (int argc, char** argv)
     check ("coulisse 0,5 (Hz)", r.freqOfLast (0.5), 110.0, 3.0);
     setParam (p, "mode", 0.0f);
 
-    // istantanea dell'interfaccia: file caricato, tasto MI premuto
+    // tastiera del controller, ottava di C3 (nota MIDI 60 in Live e Logic): ogni tasto bianco e nero
+    {
+        r.run (0.3, {}, note (64, false)); // rilascia il MI tenuto dalla prova precedente
+        setParam (p, "source", 0.0f);
+        const char* names[12] = { "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3", "G3", "G#3", "A3", "A#3", "B3" };
+        int keyErrors = 0;
+        for (int k = 0; k < 12; ++k)
+        {
+            r.run (0.6, {}, note (60 + k, true));
+            const int shown = p.engine.display.activeKey.load();
+            const double f = r.freqOfLast (0.3);
+            const double expected = 440.0 * std::pow (2.0, k / 12.0);
+            const bool ok = shown == k && std::abs (f - expected) < expected * 0.012;
+            std::cout << (ok ? "OK   " : "FAIL ") << names[k] << " (nota " << 60 + k << "): tasto " << shown
+                      << ", " << f << " Hz (atteso " << expected << ")\n";
+            if (! ok) ++keyErrors;
+            r.run (0.3, {}, note (60 + k, false));
+            if (p.engine.display.activeKey.load() != -1) { std::cout << "FAIL tasto non rilasciato\n"; ++keyErrors; }
+        }
+        failures += keyErrors;
+    }
+
+    // istantanea dell'interfaccia: file caricato, tasto FA# (nero) premuto dal controller
+    r.run (0.05, {}, note (66, true));
     setParam (p, "source", 0.0f);
     setParam (p, "loopStart", 0.12f);
     setParam (p, "loopLength", 0.55f);
