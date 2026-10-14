@@ -286,8 +286,10 @@ void PhonoLookAndFeel::drawToggleButton (Graphics& g, ToggleButton& b, bool, boo
 
         // leva conica cromata con estremità arrotondata
         {
+            // la leva esce quasi perpendicolare al pannello e scatta di ~20° verso I o O:
+            // vista di fronte appare corta (scorcio) con la punta vicina all'osservatore
             const float dir = on ? -1.0f : 1.0f;
-            const float L = 22.0f;
+            const float L = 10.0f;
             const auto tip = c.translated (0.0f, dir * L);
 
             auto lever = [&] (Point<float> base, Point<float> end, float wb, float wt)
@@ -303,10 +305,10 @@ void PhonoLookAndFeel::drawToggleButton (Graphics& g, ToggleButton& b, bool, boo
 
             // ombra
             g.setColour (Colours::black.withAlpha (0.28f));
-            g.fillPath (lever (c.translated (3.0f, 3.0f), tip.translated (4.5f, 4.0f), 2.8f, 2.0f));
-            g.fillEllipse (Rectangle<float> (8.0f, 8.0f).withCentre (tip.translated (4.5f, 4.0f)));
+            g.fillPath (lever (c.translated (2.5f, 3.0f), tip.translated (6.5f, 7.0f), 3.0f, 3.2f));
+            g.fillEllipse (Rectangle<float> (10.0f, 10.0f).withCentre (tip.translated (6.5f, 7.0f)));
 
-            const auto body = lever (c, tip, 2.8f, 1.9f);
+            const auto body = lever (c, tip, 3.0f, 3.4f);
             ColourGradient lg (Colour (0xff6a6d68), c.x - 3.0f, 0, Colour (0xff767974), c.x + 3.0f, 0, false);
             lg.addColour (0.35, Colour (0xfff7f8f5));
             lg.addColour (0.55, Colour (0xffc4c6c1));
@@ -316,14 +318,14 @@ void PhonoLookAndFeel::drawToggleButton (Graphics& g, ToggleButton& b, bool, boo
             g.strokePath (body, PathStrokeType (0.5f));
 
             // estremità a oliva
-            auto ball = Rectangle<float> (7.5f, 8.5f).withCentre (tip);
+            auto ball = Rectangle<float> (9.5f, 9.0f).withCentre (tip);
             ColourGradient tg (Colours::white, ball.getX() + 1.5f, ball.getY() + 1.5f, Colour (0xff70736e), ball.getRight(), ball.getBottom(), true);
             g.setGradientFill (tg);
             g.fillEllipse (ball);
             g.setColour (Colour (0xff4e514c));
             g.drawEllipse (ball, 0.6f);
             g.setColour (Colours::white.withAlpha (0.9f));
-            g.fillEllipse (Rectangle<float> (2.2f, 2.2f).withCentre (tip.translated (-1.3f, -1.6f)));
+            g.fillEllipse (Rectangle<float> (2.6f, 2.6f).withCentre (tip.translated (-1.6f, -1.8f)));
         }
     }
 
