@@ -30,6 +30,21 @@ void TapeEngine::prepare (double sampleRate, int)
     for (auto& pk : display.recPeaks) pk.store (0.0f);
 }
 
+void TapeEngine::copyRecording (juce::AudioBuffer<float>& dest, int len) const
+{
+    len = juce::jlimit (0, recBuffer.getNumSamples(), len);
+    dest.setSize (2, juce::jmax (1, len));
+    dest.clear();
+    for (int ch = 0; ch < 2; ++ch)
+        dest.copyFrom (ch, 0, recBuffer, ch, 0, len);
+}
+
+void TapeEngine::queueRecording (juce::AudioBuffer<float>* buf, int len) noexcept
+{
+    pendingRecLen.store (len);
+    delete pendingRec.exchange (buf);   // un eventuale nastro precedente non ancora preso
+}
+
 int TapeEngine::topHeldNote() const noexcept
 {
     return heldCount > 0 ? heldOrder[(size_t) heldCount - 1] : -1;
@@ -91,6 +106,71 @@ TapeEngine::TapeView TapeEngine::currentTape (const EngineParams& p) const noexc
     return { nullptr, nullptr, 0 };
 }
 
+// ---- Lettura a banda limitata (anti-aliasing) ----
+// Sinc finestrato (Kaiser) tabulato: per velocità > 1 il taglio scende a Nyquist/velocità,
+// così i contenuti che dopo l'accelerazione supererebbero Nyquist vengono filtrati
+// invece di ripiegarsi nella banda udibile.
+namespace
+{
+    constexpr int sincZeros = 8;          // attraversamenti dello zero per lato
+    constexpr int sincRes = 512;          // punti per unità
+    constexpr double maxRateForFilter = 4.0;
+
+    const std::vector<float>& sincTable()
+    {
+        static const std::vector<float> table = []
+        {
+            std::vector<float> t ((size_t) (sincZeros * sincRes + 2));
+            const double beta = 7.0;
+            auto bessel0 = [] (double x)
+            {
+                double sum = 1.0, term = 1.0;
+                for (int k = 1; k < 30; ++k) { term *= (x / (2.0 * k)) * (x / (2.0 * k)); sum += term; }
+                return sum;
+            };
+            const double norm = bessel0 (beta);
+            for (size_t i = 0; i < t.size(); ++i)
+            {
+                const double x = (double) i / sincRes;                 // 0..Z
+                const double sinc = x < 1.0e-9 ? 1.0 : std::sin (juce::MathConstants<double>::pi * x) / (juce::MathConstants<double>::pi * x);
+                const double r = juce::jmin (1.0, x / sincZeros);
+                const double kaiser = bessel0 (beta * std::sqrt (1.0 - r * r)) / norm;
+                t[i] = (float) (sinc * kaiser);
+            }
+            return t;
+        }();
+        return table;
+    }
+}
+
+void TapeEngine::readBandLimited (const TapeView& tape, int start, int region, double position, double rate,
+                                  float& outL, float& outR) noexcept
+{
+    const auto& table = sincTable();
+    const double c = 0.94 / juce::jlimit (1.0, maxRateForFilter, std::abs (rate));   // taglio relativo a Nyquist
+    const double half = sincZeros / c;
+    const int i0 = (int) std::floor (position);
+    const int k0 = i0 - (int) std::ceil (half) + 1, k1 = i0 + (int) std::ceil (half);
+    float l = 0.0f, r = 0.0f;
+    for (int k = k0; k <= k1; ++k)
+    {
+        const double t = std::abs (position - k) * c;
+        if (t >= sincZeros) continue;
+        const double ti = t * sincRes;
+        const int ii = (int) ti;
+        const float frac = (float) (ti - ii);
+        const float w = (float) c * (table[(size_t) ii] + frac * (table[(size_t) ii + 1] - table[(size_t) ii]));
+        int idx = k % region;
+        if (idx < 0) idx += region;
+        idx += start;
+        if (idx >= tape.length) continue;
+        l += w * tape.l[idx];
+        r += w * tape.r[idx];
+    }
+    outL = l;
+    outR = r;
+}
+
 // Interpolazione di Hermite a 4 punti con avvolgimento nella regione dell'anello.
 float TapeEngine::hermite (const float* d, int len, int start, int region, double position) noexcept
 {
@@ -119,6 +199,18 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
 {
     const int numSamples = out.getNumSamples();
     const int numOut = out.getNumChannels();
+
+    // ---- nastro registrato ripristinato dallo stato del plugin ----
+    if (consumedRec.load() == nullptr)
+        if (auto* restored = pendingRec.exchange (nullptr))
+        {
+            const int len = juce::jmin (pendingRecLen.load(), restored->getNumSamples(), recBuffer.getNumSamples() - 4);
+            for (int ch = 0; ch < 2; ++ch)
+                recBuffer.copyFrom (ch, 0, *restored, juce::jmin (ch, restored->getNumChannels() - 1), 0, len);
+            recLength = recWrite = len;
+            wasRecording = false;
+            consumedRec.store (restored);   // liberato dal thread dei messaggi
+        }
 
     // ---- registrazione dall'ingresso (sidechain o ingresso principale) ----
     const bool recNow = p.record && p.source == 1;
@@ -295,8 +387,10 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
                 double rp = pos + (x / contact - 0.5) * W;
                 rp = std::fmod (rp, (double) region);
                 if (rp < 0.0) rp += region;
-                accL += w * hermite (tape.l, tape.length, start, region, rp);
-                accR += w * hermite (tape.r, tape.length, start, region, rp);
+                float hl, hr;
+                readBandLimited (tape, start, region, rp, vp, hl, hr);
+                accL += w * hl;
+                accR += w * hr;
                 sumW += w;
             }
             const float norm = 1.0f / juce::jmax (0.5f, sumW);
@@ -313,8 +407,7 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
 
             if (pos >= region) pos = std::fmod (pos, (double) region);
 
-            l = hermite (tape.l, tape.length, start, region, pos);
-            r = hermite (tape.r, tape.length, start, region, pos);
+            readBandLimited (tape, start, region, pos, v, l, r);
 
             pos += v;
             if (pos >= region) pos -= region;
@@ -383,5 +476,6 @@ void TapeEngine::process (juce::AudioBuffer<float>& out,
     display.activeKey.store (note < 0 ? -1 : (p.mode == 1 ? -1 : ((note % 12) + 12) % 12));
     display.recording.store (recNow);
     display.recSeconds.store ((float) ((recNow ? recWrite : recLength) / sr));
+    recordedShared.store (recNow ? recWrite : recLength);
     display.outLevel.store (meter);
 }

@@ -8,6 +8,9 @@ Strumento VST3 / AU / Standalone con ingresso sidechain.
 - **Chromatique**: dodici tasti = dodici capstan, rapporti 2^(n/12); un solo nastro e una sola testina, quindi monofonico con priorità all'ultimo tasto. Le ottave MIDI ricadono nell'unica ottava (interruttore «ÉTENDU» per la tastiera intera).
 - **À coulisse**: motore a velocità continua con la leva (0–2×, mod wheel) e pitch bend, con inerzia propria; il tasto innesta il nastro (l'altezza del tasto non conta, ÉTENDU non ha effetto).
 - **Universel**: testina rotante (regolatore temporale di Springer). La tastiera dà l'altezza, la leva COULISSE la velocità del nastro (durata, fino al quasi congelamento), indipendenti. TÊTES (2–4 testine sul tamburo), FENÊTRE (distanza tra le testine sul nastro, 10–250 ms), DURETÉ (da dissolvenza morbida a commutazione secca: gli artefatti di raccordo tipici della macchina). INERTIE fa scivolare altezza e velocità.
+- **Nastro registrato salvato nel progetto** (FLAC nello stato del plugin, ricampionato se cambia la frequenza) ed **esportabile** in WAV o AIFF con «EXPORTER».
+- **Anti-aliasing**: lettura con sinc finestrato a banda limitata, taglio scalato sulla velocità (fino a 4×).
+- **Interfaccia ridimensionabile** (angolo in basso a destra, proporzioni fisse), dimensione salvata nel progetto; i file si caricano in background.
 - **CC MIDI** su tutti i comandi, con MIDI learn dal menu del tasto destro (tabella in `INSTALL.txt`).
 - Inerzia meccanica di avvio/arresto, pleurage e flutter sulla velocità reale, soffio solo a nastro in movimento, risposta della testina e saturazione.
 

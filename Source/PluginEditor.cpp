@@ -689,7 +689,12 @@ void TapeStrip::paint (Graphics& g)
     bool empty = true;
     String caption;
 
-    if (source == 0)
+    if (source == 0 && proc.isLoading())
+    {
+        caption = String::fromUTF8 ("CHARGEMENT DE LA BANDE…");
+        for (int i = 0; i < 512; ++i) { peaks[i] = proc.filePeaks[(size_t) i].load(); empty &= peaks[i] <= 0.0f; }
+    }
+    else if (source == 0)
     {
         for (int i = 0; i < 512; ++i) { peaks[i] = proc.filePeaks[(size_t) i].load(); empty &= peaks[i] <= 0.0f; }
         caption = proc.getFileName().isEmpty() ? String (String::fromUTF8 ("AUCUNE BANDE  ·  GLISSER UN FICHIER ICI OU « CHARGER »"))
@@ -800,15 +805,28 @@ void OctaveKeyboard::paint (Graphics& g)
             }
             else
             {
-                g.setColour (Colours::black.withAlpha (0.4f));
-                g.fillRoundedRectangle (kb.translated (2.0f, 2.0f), 2.5f);
-                ColourGradient kg (Colour (0xff3a3632), kb.getX(), kb.getY(), Colour (0xff0b0a09), kb.getX(), kb.getBottom(), false);
-                g.setGradientFill (kg);
-                g.fillRoundedRectangle (kb.withTrimmedBottom (down ? 0.0f : 3.0f), 2.5f);
-                if (down)
+                if (! down)
                 {
-                    g.setColour (Col::lamp.withAlpha (0.5f));
-                    g.fillRect (kb.removeFromBottom (4.0f).reduced (3.0f, 0.0f));
+                    g.setColour (Colours::black.withAlpha (0.4f));
+                    g.fillRoundedRectangle (kb.translated (2.0f, 2.0f), 2.5f);
+                    ColourGradient kg (Colour (0xff3a3632), kb.getX(), kb.getY(), Colour (0xff0b0a09), kb.getX(), kb.getBottom(), false);
+                    g.setGradientFill (kg);
+                    g.fillRoundedRectangle (kb.withTrimmedBottom (3.0f), 2.5f);
+                    // riflesso sul bordo anteriore del tasto a riposo
+                    g.setColour (Colours::white.withAlpha (0.12f));
+                    g.fillRect (kb.withTrimmedBottom (3.0f).removeFromBottom (5.0f).reduced (2.0f, 0.0f));
+                }
+                else
+                {
+                    // tasto abbassato: più corto, senza ombra, illuminato in rosso come i tasti bianchi
+                    auto pk = kb.withTrimmedBottom (8.0f);
+                    ColourGradient kg (Colour (0xff4a3a34), pk.getX(), pk.getY(), Colour (0xff2a1612), pk.getX(), pk.getBottom(), false);
+                    g.setGradientFill (kg);
+                    g.fillRoundedRectangle (pk, 2.5f);
+                    g.setColour (Col::lamp.withAlpha (0.85f));
+                    g.fillRoundedRectangle (pk.removeFromBottom (10.0f).reduced (3.0f, 1.0f), 2.0f);
+                    g.setColour (Col::lamp.withAlpha (0.35f));
+                    g.drawRoundedRectangle (kb.withTrimmedBottom (8.0f).expanded (1.0f), 3.0f, 1.5f);
                 }
             }
         }
@@ -890,8 +908,15 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
 
     addAndMakeVisible (loadButton);
     loadButton.onClick = [this] { openFileChooser(); };
+    addAndMakeVisible (exportButton);
+    exportButton.onClick = [this] { exportRecording(); };
+    exportButton.setTooltip (String::fromUTF8 ("Exporter la bande enregistrée en WAV ou AIFF"));
 
-    setSize (1000, 740);
+    // finestra ridimensionabile con proporzioni fisse; la dimensione si salva nel progetto
+    setResizable (true, true);
+    setResizeLimits (600, (int) std::round (600 * logicalH / logicalW), 1500, (int) std::round (1500 * logicalH / logicalW));
+    if (auto* c = getConstrainer()) c->setFixedAspectRatio (logicalW / logicalH);
+    setSize (proc.editorWidth, (int) std::round (proc.editorWidth * logicalH / logicalW));
     startTimerHz (30);
 }
 
@@ -921,22 +946,23 @@ void PhonogeneEditor::setupToggle (ToggleButton& b, std::unique_ptr<ButtonAtt>& 
 
 void PhonogeneEditor::buildTexture()
 {
-    texture = Image (Image::RGB, getWidth(), getHeight(), true);
+    texture = Image (Image::RGB, jmax (1, getWidth()), jmax (1, getHeight()), true);
     Graphics g (texture);
     g.fillAll (Col::enamel);
+    g.addTransform (AffineTransform::scale (uiScale()));
 
     // smalto martellato: tante piccole ammaccature chiare e scure
     Random rnd (1953);
     for (int i = 0; i < 2600; ++i)
     {
-        const float x = rnd.nextFloat() * (float) getWidth();
-        const float y = rnd.nextFloat() * (float) getHeight();
+        const float x = rnd.nextFloat() * logicalW;
+        const float y = rnd.nextFloat() * logicalH;
         const float r = 3.0f + rnd.nextFloat() * 7.0f;
         const bool light = rnd.nextBool();
         g.setColour ((light ? Colours::white : Colours::black).withAlpha (0.01f + rnd.nextFloat() * 0.015f));
         g.fillEllipse (x - r, y - r, r * 2.0f, r * 2.0f);
     }
-    ColourGradient vignette (Colours::transparentBlack, getWidth() * 0.5f, getHeight() * 0.4f,
+    ColourGradient vignette (Colours::transparentBlack, logicalW * 0.5f, logicalH * 0.4f,
                              Colours::black.withAlpha (0.16f), 0.0f, 0.0f, true);
     g.setGradientFill (vignette);
     g.fillAll();
@@ -948,8 +974,9 @@ void PhonogeneEditor::paint (Graphics& g)
         buildTexture();
 
     g.drawImageAt (texture, 0, 0);
+    g.addTransform (AffineTransform::scale (uiScale()));
 
-    auto r = getLocalBounds().toFloat();
+    auto r = Rectangle<float> (logicalW, logicalH);
     g.setColour (Colours::white.withAlpha (0.15f));
     g.drawRect (r.reduced (1.0f), 1.0f);
     g.setColour (Colours::black.withAlpha (0.5f));
@@ -968,6 +995,7 @@ void PhonogeneEditor::paint (Graphics& g)
 
 void PhonogeneEditor::paintOverChildren (Graphics& g)
 {
+    g.addTransform (AffineTransform::scale (uiScale()));
     // MIDI learn in corso: cornice sul comando e istruzione
     if (const int learn = proc.getLearnIndex(); learn >= 0)
         if (auto* c = componentForCCIndex (learn))
@@ -977,7 +1005,7 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
             g.setColour (Col::amber.withAlpha (pulse));
             g.drawRoundedRectangle (b, 6.0f, 2.5f);
             auto banner = Rectangle<float> (b.getCentreX() - 110.0f, b.getY() - 26.0f, 220.0f, 20.0f)
-                              .constrainedWithin (getLocalBounds().toFloat().reduced (4.0f));
+                              .constrainedWithin (Rectangle<float> (logicalW, logicalH).reduced (4.0f));
             g.setColour (Colour (0xff1d1d1c).withAlpha (0.9f));
             g.fillRoundedRectangle (banner, 4.0f);
             g.setColour (Col::amber);
@@ -1033,9 +1061,28 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
 
 void PhonogeneEditor::resized()
 {
+    layoutLogical();
+
+    // ogni comando è posizionato in coordinate logiche e poi scalato
+    const auto t = AffineTransform::scale (uiScale());
+    for (Component* c : std::initializer_list<Component*> {
+             &deck, &strip, &keyboard, &loadButton, &exportButton,
+             &kStart.slider, &kLength.slider, &kInertia.slider, &kLevel.slider, &kWow.slider, &kHiss.slider,
+             &kDrive.slider, &kMode.slider, &kSource.slider, &kCoulisse.slider,
+             &kHeads.slider, &kWindow.slider, &kHardness.slider,
+             &tRecord, &tMonitor, &tRestart, &tExtended })
+        c->setTransform (t);
+
+    proc.editorWidth = getWidth();
+    texture = {};
+}
+
+void PhonogeneEditor::layoutLogical()
+{
     deck.setBounds (24, 24, 952, 380);
     strip.setBounds (24, 416, 826, 70);
-    loadButton.setBounds (862, 422, 114, 56);
+    loadButton.setBounds (862, 416, 114, 34);
+    exportButton.setBounds (862, 454, 114, 32);
 
     keyboard.setBounds (24, 500, 404, 218);
 
@@ -1146,17 +1193,45 @@ void PhonogeneEditor::openFileChooser()
                           [this] (const FileChooser& fc)
                           {
                               const auto f = fc.getResult();
-                              if (f.existsAsFile() && proc.loadFile (f))
-                                  if (auto* src = proc.apvts.getParameter ("source"))
-                                      src->setValueNotifyingHost (0.0f);
+                              if (! f.existsAsFile()) return;
+                              proc.loadFileAsync (f);
+                              if (auto* src = proc.apvts.getParameter ("source"))
+                                  src->setValueNotifyingHost (0.0f);
+                          });
+}
+
+void PhonogeneEditor::exportRecording()
+{
+    if (! proc.hasRecording())
+    {
+        AlertWindow::showMessageBoxAsync (MessageBoxIconType::InfoIcon, "Phonogene",
+                                          String::fromUTF8 ("Aucune bande enregistrée : choisissez SOURCE ENTRÉE et ENREG."));
+        return;
+    }
+
+    chooser = std::make_unique<FileChooser> ("Exporter la bande",
+                                             File::getSpecialLocation (File::userMusicDirectory).getChildFile ("Phonogene bande.wav"),
+                                             "*.wav;*.aif;*.aiff");
+    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::canSelectFiles
+                              | FileBrowserComponent::warnAboutOverwriting,
+                          [this] (const FileChooser& fc)
+                          {
+                              auto f = fc.getResult();
+                              if (f == File()) return;
+                              if (! f.hasFileExtension ("wav;aif;aiff"))
+                                  f = f.withFileExtension ("wav");
+                              if (! proc.exportRecording (f))
+                                  AlertWindow::showMessageBoxAsync (MessageBoxIconType::WarningIcon, "Phonogene",
+                                                                    String::fromUTF8 ("Exportation impossible : ") + f.getFullPathName());
                           });
 }
 
 void PhonogeneEditor::filesDropped (const StringArray& files, int, int)
 {
     for (const auto& path : files)
-        if (proc.loadFile (File (path)))
+        if (proc.formatManager.findFormatForFileExtension (File (path).getFileExtension()) != nullptr)
         {
+            proc.loadFileAsync (File (path));
             if (auto* src = proc.apvts.getParameter ("source"))
                 src->setValueNotifyingHost (0.0f);
             break;

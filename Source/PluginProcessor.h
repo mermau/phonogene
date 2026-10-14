@@ -36,7 +36,10 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     // carica un file audio come nastro (thread dei messaggi)
-    bool loadFile (const juce::File& file);
+    bool loadFile (const juce::File& file);          // sincrono (usato dai test)
+    void loadFileAsync (const juce::File& file);     // decodifica in background, poi aggiorna il nastro
+    bool isLoading() const { return loadingCount.load() > 0; }
+    int  editorWidth = 1000;                          // dimensione dell'interfaccia, salvata nello stato
     juce::String getFileName() const { return currentFile.getFileName(); }
     float getFileSeconds() const { return fileSeconds; }
 
@@ -61,6 +64,11 @@ public:
     void forgetCC (int index) { assignedCC[(size_t) index].store (-1); }
     void resetDefaultCCs();
     void applyPendingCCs();   // thread dei messaggi (chiamata dal timer)
+    void housekeeping();      // thread dei messaggi: CC in attesa e nastri da liberare
+
+    // nastro registrato: esportazione in WAV/AIFF (in base all'estensione)
+    bool hasRecording() const;
+    bool exportRecording (const juce::File& file);
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
@@ -82,9 +90,24 @@ private:
     std::atomic<int> learnIndex { -1 };
     void handleControllers (const juce::MidiBuffer& midi) noexcept;
 
+    // copia di appoggio del nastro registrato (ripristino dallo stato, cambio di frequenza)
+    juce::AudioBuffer<float> stagedRec;
+    int    stagedRecLen = 0;
+    double stagedRecRate = 0.0;
+    void stageCurrentRecording();
+    void pushStagedRecording();
+    // il nastro da salvare/esportare: quello nel motore o, se non ancora caricato, la copia di appoggio
+    bool getRecordingForSave (juce::AudioBuffer<float>& dest, int& len, double& rate) const;
+
     std::atomic<float>* pMode {}, *pSource {}, *pRecord {}, *pMonitor {}, *pRestart {}, *pExtended {},
                       *pStart {}, *pLength {}, *pInertia {}, *pWow {}, *pHiss {}, *pDrive {},
                       *pLevel {}, *pCoulisse {}, *pBend {}, *pHeads {}, *pWindow {}, *pHardness {};
+
+    // decodifica + ricampionamento di un file (thread qualsiasi)
+    static std::unique_ptr<Tape> decodeFile (const juce::File& file, double rate, float& seconds);
+    void commitTape (std::unique_ptr<Tape> tape, const juce::File& file, float seconds);
+    std::atomic<int> loadingCount { 0 };
+    juce::ThreadPool loader { 1 };   // per ultimo: viene distrutto (e atteso) per primo
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PhonogeneProcessor)
 };

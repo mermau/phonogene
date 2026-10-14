@@ -140,6 +140,13 @@ private:
     PhonoToggle tRecord, tMonitor, tRestart, tExtended;
     std::unique_ptr<ButtonAtt> aRecord, aMonitor, aRestart, aExtended;
     juce::TextButton loadButton { "CHARGER" };
+    juce::TextButton exportButton { "EXPORTER" };
+    void exportRecording();
+
+    // l'interfaccia è disegnata in coordinate logiche 1000×740 e scalata
+    static constexpr float logicalW = 1000.0f, logicalH = 740.0f;
+    float uiScale() const { return (float) getWidth() / logicalW; }
+    void layoutLogical();
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::Image texture;

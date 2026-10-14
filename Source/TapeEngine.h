@@ -3,6 +3,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
 #include <atomic>
+#include <vector>
 
 // Un tratto di nastro già alla frequenza di campionamento della sessione.
 struct Tape
@@ -55,12 +56,22 @@ struct EngineDisplay
 class TapeEngine
 {
 public:
+    ~TapeEngine() { delete pendingRec.exchange (nullptr); delete consumedRec.exchange (nullptr); }
     static constexpr double maxRecordSeconds = 30.0;
 
     void prepare (double sampleRate, int maxBlock);
 
     // Thread audio: il nastro del file è fornito dal processore.
     void setFileTape (const Tape* t) noexcept { fileTape = t; }
+
+    // ---- nastro registrato: lettura, ripristino (stato del plugin) ----
+    int  getRecordedLength() const noexcept { return recordedShared.load(); }
+    int  getMaxRecordLength() const noexcept { return juce::jmax (0, recBuffer.getNumSamples() - 4); }
+    void copyRecording (juce::AudioBuffer<float>& dest, int len) const;      // thread dei messaggi
+    // consegna al thread audio un nastro da caricare; il buffer torna indietro per essere liberato
+    void queueRecording (juce::AudioBuffer<float>* buf, int len) noexcept;
+    bool hasQueuedRecording() const noexcept { return pendingRec.load() != nullptr; }
+    juce::AudioBuffer<float>* takeConsumedRecording() noexcept { return consumedRec.exchange (nullptr); }
 
     void process (juce::AudioBuffer<float>& out,
                   const juce::AudioBuffer<float>* input,
@@ -76,6 +87,8 @@ private:
     int  topHeldNote() const noexcept;
     TapeView currentTape (const EngineParams& p) const noexcept;
     static float hermite (const float* d, int len, int start, int region, double pos) noexcept;
+    static void readBandLimited (const TapeView& tape, int start, int region, double position, double rate,
+                                 float& outL, float& outR) noexcept;
 
     double sr = 44100.0;
 
@@ -83,6 +96,10 @@ private:
     juce::AudioBuffer<float> recBuffer;
     int  recWrite = 0;
     int  recLength = 0;
+    std::atomic<int> recordedShared { 0 };
+    std::atomic<juce::AudioBuffer<float>*> pendingRec { nullptr };
+    std::atomic<int> pendingRecLen { 0 };
+    std::atomic<juce::AudioBuffer<float>*> consumedRec { nullptr };
     bool wasRecording = false;
 
     const Tape* fileTape = nullptr;

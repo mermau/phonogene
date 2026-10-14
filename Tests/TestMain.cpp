@@ -170,6 +170,29 @@ int main (int argc, char** argv)
     check ("DO+1 ripiegato (Hz)", r.freqOfLast (0.5), 440.0, 4.0);
     r.run (0.4, {}, note (72, false));
 
+    // anti-aliasing: una sinusoide a 15 kHz letta a 2x (30 kHz) non deve ripiegarsi a 18 kHz
+    {
+        const File hf = outDir.getChildFile ("test15k.wav");
+        writeSine (hf, 15000.0, 48000.0, 2.0);
+        p.loadFile (hf);
+        r.run (0.05);
+        setParam (p, "extended", 1.0f);
+        r.run (0.6, {}, note (60, true));
+        const float rms1 = r.rmsOfLast (0.3);
+        r.run (0.3, {}, note (60, false));
+        r.run (0.6, {}, note (72, true));                 // C4 con ÉTENDU: velocità 2x
+        const float rms2 = r.rmsOfLast (0.3);
+        r.run (0.3, {}, note (72, false));
+        const double db = 20.0 * std::log10 ((rms2 + 1e-9) / rms1);
+        std::cout << "15 kHz a 1x: " << rms1 << "   a 2x: " << rms2 << " (" << db << " dB)\n";
+        check ("residuo di aliasing a 2x sotto -40 dB", db < -40.0 ? 1.0 : 0.0, 1.0, 0.0);
+        setParam (p, "extended", 0.0f);
+        p.housekeeping();
+        p.loadFile (wav);
+        r.run (0.05);
+        p.housekeeping();
+    }
+
     // registrazione dal sidechain
     setParam (p, "source", 1.0f);
     setParam (p, "record", 1.0f);
@@ -237,6 +260,46 @@ int main (int argc, char** argv)
         setParam (p, "mode", 0.0f);
         setParam (p, "hiss", 0.0f);
         r.run (0.05);
+    }
+
+    // nastro registrato: esportazione e ripristino dallo stato del plugin
+    {
+        const File wavOut = outDir.getChildFile ("export.wav"), aifOut = outDir.getChildFile ("export.aiff");
+        check ("esportazione WAV", p.exportRecording (wavOut) ? 1.0 : 0.0, 1.0, 0.0);
+        check ("esportazione AIFF", p.exportRecording (aifOut) ? 1.0 : 0.0, 1.0, 0.0);
+        AudioFormatManager fm; fm.registerBasicFormats();
+        for (auto& f : { wavOut, aifOut })
+        {
+            std::unique_ptr<AudioFormatReader> rd (fm.createReaderFor (f));
+            check ("  durata " + f.getFileExtension(), rd != nullptr ? (double) rd->lengthInSamples / rd->sampleRate : 0.0, 1.5, 0.02);
+        }
+
+        MemoryBlock state;
+        p.getStateInformation (state);
+        std::cout << "stato del plugin: " << state.getSize() / 1024 << " KB\n";
+
+        // nuovo plugin a 44,1 kHz: il nastro va ripristinato e ricampionato
+        PhonogeneProcessor q;
+        q.setStateInformation (state.getData(), (int) state.getSize());
+        q.prepareToPlay (44100.0, 512);
+        Runner rq { q, 44100.0 };
+        rq.run (0.05);
+        q.housekeeping();
+        check ("ripristino: secondi del nastro", q.engine.display.recSeconds.load(), 1.5, 0.02);
+        setParam (q, "source", 1.0f);
+        setParam (q, "hiss", 0.0f);
+        setParam (q, "wow", 0.0f);
+        rq.run (1.0, {}, note (60, true));
+        check ("ripristino: il nastro suona a 220 Hz", rq.freqOfLast (0.5), 220.0, 3.0);
+
+        // cambio di frequenza della sessione: il nastro non si perde
+        q.prepareToPlay (48000.0, 512);
+        Runner rq2 { q, 48000.0 };
+        rq2.run (0.05);
+        q.housekeeping();
+        check ("cambio frequenza: nastro conservato", q.engine.display.recSeconds.load(), 1.5, 0.02);
+        rq2.run (1.0, {}, note (60, true));
+        check ("cambio frequenza: ancora 220 Hz", rq2.freqOfLast (0.5), 220.0, 3.0);
     }
 
     // universale: altezza dalla tastiera, durata dalla leva, indipendenti
@@ -350,6 +413,14 @@ int main (int argc, char** argv)
     png3.deleteFile();
     if (auto os = png3.createOutputStream())
         PNGImageFormat().writeImageToStream (snap3, *os);
+
+    // quarta istantanea: interfaccia ridimensionata al 70%
+    ed->setSize (700, 518);
+    auto snap4 = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
+    const File png4 = outDir.getChildFile ("phonogene_ui_small.png");
+    png4.deleteFile();
+    if (auto os = png4.createOutputStream())
+        PNGImageFormat().writeImageToStream (snap4, *os);
 
     ed.reset();
     std::cout << (failures == 0 ? "TUTTI I TEST SUPERATI" : "TEST FALLITI: " + String (failures)) << "\n";

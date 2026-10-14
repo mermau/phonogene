@@ -193,6 +193,11 @@ bool PhonogeneProcessor::isBusesLayoutSupported (const BusesLayout& layouts) con
 void PhonogeneProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     keyboardState.reset();
+
+    // prepare() rialloca il nastro di registrazione: lo si mette da parte e lo si ricarica
+    if (engine.getRecordedLength() > 0 && stagedRecLen == 0 && currentRate > 0.0)
+        stageCurrentRecording();
+
     engine.prepare (sampleRate, samplesPerBlock);
 
     // il nastro del file va ricampionato alla nuova frequenza
@@ -200,8 +205,99 @@ void PhonogeneProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     {
         currentRate = sampleRate;
         if (currentFile.existsAsFile())
-            juce::MessageManager::callAsync ([this, f = currentFile, a = alive] { if (a->load()) loadFile (f); });
+            juce::MessageManager::callAsync ([this, f = currentFile, a = alive] { if (a->load()) loadFileAsync (f); });
     }
+    pushStagedRecording();
+}
+
+void PhonogeneProcessor::stageCurrentRecording()
+{
+    const int len = engine.getRecordedLength();
+    engine.copyRecording (stagedRec, len);
+    stagedRecLen = len;
+    stagedRecRate = currentRate;
+}
+
+void PhonogeneProcessor::pushStagedRecording()
+{
+    if (stagedRecLen <= 0 || currentRate <= 0.0)
+        return;
+
+    // ricampiona alla frequenza della sessione, se diversa
+    const double ratio = stagedRecRate / currentRate;
+    const int maxLen = engine.getMaxRecordLength();
+    int outLen = juce::jmin (maxLen, (int) std::floor (stagedRecLen / ratio));
+    if (outLen <= 0) return;
+
+    auto* buf = new juce::AudioBuffer<float> (2, outLen);
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        const int src = juce::jmin (ch, stagedRec.getNumChannels() - 1);
+        if (juce::approximatelyEqual (ratio, 1.0))
+            buf->copyFrom (ch, 0, stagedRec, src, 0, outLen);
+        else
+        {
+            juce::WindowedSincInterpolator interp;
+            interp.process (ratio, stagedRec.getReadPointer (src), buf->getWritePointer (ch), outLen,
+                            stagedRec.getNumSamples(), 0);
+        }
+    }
+
+    // panoramica per l'interfaccia (scala sulla durata massima, come durante la registrazione)
+    for (int b = 0; b < 512; ++b)
+    {
+        const int a = (int) ((juce::int64) b * maxLen / 512), e = juce::jmin (outLen, (int) ((juce::int64) (b + 1) * maxLen / 512));
+        float pk = 0.0f;
+        for (int i = a; i < e; ++i)
+            pk = juce::jmax (pk, std::abs (buf->getSample (0, i)), std::abs (buf->getSample (1, i)));
+        engine.display.recPeaks[(size_t) b].store (pk);
+    }
+    engine.display.recSeconds.store ((float) (outLen / currentRate));
+    engine.queueRecording (buf, outLen);
+}
+
+bool PhonogeneProcessor::getRecordingForSave (juce::AudioBuffer<float>& dest, int& len, double& rate) const
+{
+    const bool useStaged = stagedRecLen > 0 && (engine.hasQueuedRecording() || engine.getRecordedLength() == 0);
+    if (useStaged)
+    {
+        dest.makeCopyOf (stagedRec);
+        len = stagedRecLen;
+        rate = stagedRecRate;
+    }
+    else
+    {
+        len = engine.getRecordedLength();
+        engine.copyRecording (dest, len);
+        rate = currentRate > 0.0 ? currentRate : 48000.0;
+    }
+    return len > 0;
+}
+
+bool PhonogeneProcessor::hasRecording() const
+{
+    return stagedRecLen > 0 || engine.getRecordedLength() > 0;
+}
+
+bool PhonogeneProcessor::exportRecording (const juce::File& file)
+{
+    juce::AudioBuffer<float> data;
+    int len = 0;
+    double rate = 0.0;
+    if (! getRecordingForSave (data, len, rate))
+        return false;
+
+    std::unique_ptr<juce::AudioFormat> format;
+    if (file.hasFileExtension ("aif;aiff")) format = std::make_unique<juce::AiffAudioFormat>();
+    else                                     format = std::make_unique<juce::WavAudioFormat>();
+
+    file.deleteFile();
+    auto os = file.createOutputStream();
+    if (os == nullptr) return false;
+    std::unique_ptr<juce::AudioFormatWriter> writer (format->createWriterFor (os.get(), rate, 2, 24, {}, 0));
+    if (writer == nullptr) return false;
+    os.release();   // ora appartiene al writer
+    return writer->writeFromAudioSampleBuffer (data, 0, len);
 }
 
 EngineParams PhonogeneProcessor::readParams() const
@@ -271,21 +367,33 @@ void PhonogeneProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
 void PhonogeneProcessor::timerCallback()
 {
+    housekeeping();
+}
+
+void PhonogeneProcessor::housekeeping()
+{
     applyPendingCCs();
+    if (auto* used = engine.takeConsumedRecording())
+    {
+        delete used;
+        stagedRecLen = 0;          // ora il nastro vive nel motore
+        stagedRec.setSize (2, 1);
+    }
     delete retiredTape.exchange (nullptr);
 }
 
-bool PhonogeneProcessor::loadFile (const juce::File& file)
+std::unique_ptr<Tape> PhonogeneProcessor::decodeFile (const juce::File& file, double rate, float& seconds)
 {
-    std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
+    juce::AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader (fm.createReaderFor (file));
     if (reader == nullptr)
-        return false;
+        return {};
 
-    const double rate = currentRate > 0.0 ? currentRate : 48000.0;
     const auto srcLen = (int) juce::jmin<juce::int64> (reader->lengthInSamples,
                                                         (juce::int64) (maxFileSeconds * reader->sampleRate));
     if (srcLen < 16)
-        return false;
+        return {};
 
     juce::AudioBuffer<float> src (2, srcLen);
     reader->read (&src, 0, srcLen, 0, true, reader->numChannels > 1);
@@ -298,7 +406,6 @@ bool PhonogeneProcessor::loadFile (const juce::File& file)
     auto tape = std::make_unique<Tape>();
     tape->data.setSize (2, juce::jmax (8, outLen));
     tape->data.clear();
-
     for (int ch = 0; ch < 2; ++ch)
     {
         juce::WindowedSincInterpolator interp;
@@ -306,7 +413,6 @@ bool PhonogeneProcessor::loadFile (const juce::File& file)
     }
     tape->length = outLen;
 
-    // panoramica per l'interfaccia
     for (size_t b = 0; b < tape->peaks.size(); ++b)
     {
         const int a = (int) ((juce::int64) b * outLen / (int) tape->peaks.size());
@@ -315,23 +421,81 @@ bool PhonogeneProcessor::loadFile (const juce::File& file)
         for (int i = a; i < e; ++i)
             pk = juce::jmax (pk, std::abs (tape->data.getSample (0, i)), std::abs (tape->data.getSample (1, i)));
         tape->peaks[b] = pk;
-        filePeaks[b].store (pk);
     }
+    seconds = (float) (outLen / rate);
+    return tape;
+}
 
+void PhonogeneProcessor::commitTape (std::unique_ptr<Tape> tape, const juce::File& file, float seconds)
+{
+    for (size_t b = 0; b < tape->peaks.size(); ++b)
+        filePeaks[b].store (tape->peaks[b]);
     currentFile = file;
-    fileSeconds = (float) (outLen / rate);
+    fileSeconds = seconds;
     delete pendingTape.exchange (tape.release());
+}
+
+bool PhonogeneProcessor::loadFile (const juce::File& file)
+{
+    float secs = 0.0f;
+    auto tape = decodeFile (file, currentRate > 0.0 ? currentRate : 48000.0, secs);
+    if (tape == nullptr)
+        return false;
+    commitTape (std::move (tape), file, secs);
     return true;
+}
+
+void PhonogeneProcessor::loadFileAsync (const juce::File& file)
+{
+    const double rate = currentRate > 0.0 ? currentRate : 48000.0;
+    ++loadingCount;
+    loader.addJob ([this, file, rate, a = alive]
+    {
+        float secs = 0.0f;
+        auto tape = decodeFile (file, rate, secs);
+        auto* raw = tape.release();
+        juce::MessageManager::callAsync ([this, file, secs, raw, a]
+        {
+            std::unique_ptr<Tape> t (raw);
+            if (! a->load()) return;
+            if (t != nullptr)
+                commitTape (std::move (t), file, secs);
+            --loadingCount;
+        });
+    });
 }
 
 void PhonogeneProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     state.setProperty ("filePath", currentFile.getFullPathName(), nullptr);
+    state.setProperty ("uiWidth", editorWidth, nullptr);
     juce::StringArray map;
     for (int i = 0; i < numCCTargets; ++i)
         map.add (juce::String (ccTargets[i].paramId) + ":" + juce::String (assignedCC[(size_t) i].load()));
     state.setProperty ("ccMap", map.joinIntoString (","), nullptr);
+
+    // nastro registrato, compresso in FLAC 24 bit
+    juce::AudioBuffer<float> rec;
+    int len = 0;
+    double rate = 0.0;
+    if (getRecordingForSave (rec, len, rate))
+    {
+        juce::MemoryBlock block;
+        {
+            auto* mos = new juce::MemoryOutputStream (block, false);
+            juce::FlacAudioFormat flac;
+            std::unique_ptr<juce::AudioFormatWriter> w (flac.createWriterFor (mos, rate, 2, 24, {}, 0));
+            if (w != nullptr) w->writeFromAudioSampleBuffer (rec, 0, len);
+            else delete mos;
+        }
+        state.setProperty ("recData", block.toBase64Encoding(), nullptr);
+        state.setProperty ("recRate", rate, nullptr);
+    }
+    else
+    {
+        state.removeProperty ("recData", nullptr);
+    }
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
 }
@@ -345,6 +509,29 @@ void PhonogeneProcessor::setStateInformation (const void* data, int sizeInBytes)
             return;
 
         const juce::String path = state.getProperty ("filePath").toString();
+        editorWidth = juce::jlimit (600, 1500, (int) state.getProperty ("uiWidth", 1000));
+
+        // nastro registrato
+        if (state.hasProperty ("recData"))
+        {
+            juce::MemoryBlock block;
+            if (block.fromBase64Encoding (state.getProperty ("recData").toString()))
+            {
+                juce::FlacAudioFormat flac;
+                std::unique_ptr<juce::AudioFormatReader> reader (
+                    flac.createReaderFor (new juce::MemoryInputStream (block, false), true));
+                if (reader != nullptr && reader->lengthInSamples > 0)
+                {
+                    const int n = (int) reader->lengthInSamples;
+                    stagedRec.setSize (2, n);
+                    reader->read (&stagedRec, 0, n, 0, true, true);
+                    stagedRecLen = n;
+                    stagedRecRate = reader->sampleRate;
+                    pushStagedRecording();
+                }
+            }
+        }
+        state.removeProperty ("recData", nullptr);   // non resta nell'albero dei parametri
         if (state.hasProperty ("ccMap"))
         {
             for (const auto& item : juce::StringArray::fromTokens (state.getProperty ("ccMap").toString(), ",", ""))
@@ -362,7 +549,7 @@ void PhonogeneProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             const juce::File f (path);
             if (f.existsAsFile())
-                juce::MessageManager::callAsync ([this, f, a = alive] { if (a->load()) loadFile (f); });
+                juce::MessageManager::callAsync ([this, f, a = alive] { if (a->load()) loadFileAsync (f); });
         }
     }
 }
