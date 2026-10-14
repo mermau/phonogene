@@ -18,6 +18,25 @@ public:
     void drawButtonText (juce::Graphics&, juce::TextButton&, bool highlighted, bool down) override;
 };
 
+// Manopola che, se è un selettore, scatta alla posizione successiva con un clic
+// e cambia posizione con un breve trascinamento.
+class PhonoSlider : public juce::Slider
+{
+public:
+    void mouseUp (const juce::MouseEvent& e) override
+    {
+        const bool wasClick = ! e.mouseWasDraggedSinceMouseDown();
+        juce::Slider::mouseUp (e);
+
+        if (wasClick && getProperties().contains ("selector") && isEnabled())
+        {
+            double v = std::round (getValue()) + 1.0;
+            if (v > getMaximum()) v = getMinimum();
+            setValue (v, juce::sendNotificationSync);
+        }
+    }
+};
+
 // Deck con l'anello di nastro, la testina e i dodici capstan.
 class DeckView : public juce::Component
 {
@@ -83,7 +102,7 @@ private:
 
     struct Knob
     {
-        juce::Slider slider;
+        PhonoSlider slider;
         juce::String label;
         std::unique_ptr<SliderAtt> att;
     };

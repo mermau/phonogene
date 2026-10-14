@@ -611,6 +611,8 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     for (auto* s : { &kMode.slider, &kSource.slider })
     {
         s->getProperties().set ("selector", true);
+        s->setMouseDragSensitivity (40);        // basta un breve trascinamento per cambiare posizione
+        s->setPopupDisplayEnabled (false, false, nullptr);
         s->setRotaryParameters (MathConstants<float>::pi * 1.72f, MathConstants<float>::pi * 2.28f, true);
     }
     kSource.slider.setRotaryParameters (MathConstants<float>::pi * 1.8f, MathConstants<float>::pi * 2.2f, true);
