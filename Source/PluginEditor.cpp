@@ -444,20 +444,42 @@ namespace
     };
 }
 
-void DeckView::paint (Graphics& g)
+namespace
+{
+    const Point<float> wellCentre { 212.0f, 190.0f };
+    constexpr float lampX0 = 432.0f, lampX1 = 700.0f;
+
+    Point<float> lampCentre (int k) { return { lampX0 + 10.0f + (float) k * ((lampX1 - lampX0 - 20.0f) / 11.0f), 76.0f }; }
+
+    void drawLamp (Graphics& g, Point<float> lc, bool on)
+    {
+        g.setColour (Colour (0xff2a2a28));
+        g.fillEllipse (Rectangle<float> (15.0f, 15.0f).withCentre (lc));
+        if (on) { g.setColour (Col::amber.withAlpha (0.3f)); g.fillEllipse (Rectangle<float> (22.0f, 22.0f).withCentre (lc)); }
+        g.setColour (on ? Col::amber : Col::amber.darker (2.0f));
+        g.fillEllipse (Rectangle<float> (10.0f, 10.0f).withCentre (lc));
+        g.setColour (Colours::white.withAlpha (on ? 0.6f : 0.2f));
+        g.fillEllipse (Rectangle<float> (3.5f, 3.5f).withCentre (lc.translated (-1.8f, -1.8f)));
+    }
+
+    struct Tacho
+    {
+        Rectangle<float> face;
+        Point<float> pivot;
+        float rad = 140.0f, maxV = 2.0f;
+        explicit Tacho (float scaleMax) : maxV (scaleMax)
+        {
+            face = Rectangle<float> (lampX0, 112.0f, lampX1 - lampX0, 128.0f).reduced (6.0f);
+            pivot = { face.getCentreX(), face.getBottom() + 30.0f };
+        }
+        float angleFor (float v) const { return -0.8f + 1.6f * jlimit (0.0f, 1.0f, v / maxV); }
+    };
+}
+
+// Parti fisse del deck: disegnate una volta in un'immagine e riusate a ogni fotogramma.
+void DeckView::paintStatic (Graphics& g, int mode, int activeKey, float scaleMax)
 {
     const auto area = getLocalBounds().toFloat();
-    const auto& disp = proc.engine.display;
-    const int mode = (int) proc.apvts.getRawParameterValue ("mode")->load();
-    const float speed = disp.speed.load();
-    // nella coulisse il nastro è trascinato da un solo capstan (il primo) a velocità variabile
-    // cromatico: innestato il capstan del tasto; coulisse e universale: il nastro è
-    // trascinato dal primo capstan a velocità variabile
-    const bool engaged = disp.engaged.load();
-    const int activeKey = mode == 0 ? (speed > 0.001f ? disp.activeKey.load() : -1)
-                                    : (engaged ? 0 : -1);
-    // spie: il tasto suonato (in universale indica l'altezza del tamburo)
-    const int lampKey = mode == 1 ? -1 : (engaged || speed > 0.001f ? disp.activeKey.load() : -1);
 
     // piano superiore del cabinet (smalto grigio chiaro)
     g.setColour (Colours::black.withAlpha (0.3f));
@@ -482,8 +504,7 @@ void DeckView::paint (Graphics& g)
     ColourGradient tg (Colour (0xffe2e4df), tag.getX(), tag.getY(), Colour (0xff9da19d), tag.getRight(), tag.getBottom(), false);
     g.setGradientFill (tg);
     g.fillRoundedRectangle (tag, 3.0f);
-    // spazzolatura dell'acciaio
-    for (float y = tag.getY() + 2.0f; y < tag.getBottom() - 2.0f; y += 2.0f)
+    for (float y = tag.getY() + 2.0f; y < tag.getBottom() - 2.0f; y += 2.0f)   // spazzolatura dell'acciaio
     {
         g.setColour (Colours::white.withAlpha (0.08f));
         g.drawHorizontalLine ((int) y, tag.getX() + 2.0f, tag.getRight() - 2.0f);
@@ -502,7 +523,7 @@ void DeckView::paint (Graphics& g)
         screw (g, p, 2.6f, 0.6f);
 
     // ---- pozzetto circolare ----
-    const Point<float> wc { 212.0f, area.getCentreY() };
+    const auto wc = wellCentre;
     const float wellR = 174.0f;
     {
         auto wb = Rectangle<float> (2 * wellR, 2 * wellR).withCentre (wc);
@@ -523,38 +544,169 @@ void DeckView::paint (Graphics& g)
     g.drawLine (Line<float> (wc, ring.tension), 5.0f);
     metalTop (g, wc, 9.0f, 0.0f, false);
 
-    // nastro con ombra, segni di scorrimento e giunta
+    // nastro con ombra
     g.setColour (Colours::black.withAlpha (0.28f));
     g.strokePath (ring.tape, PathStrokeType (4.5f, PathStrokeType::curved, PathStrokeType::rounded), AffineTransform::translation (1.5f, 2.5f));
     g.setColour (Col::tape);
     g.strokePath (ring.tape, PathStrokeType (4.0f, PathStrokeType::curved, PathStrokeType::rounded));
-    const float len = ring.tape.getLength();
-    for (float d = std::fmod (tapePhase, 22.0f); d < len; d += 22.0f)
-    {
-        g.setColour (Col::tapeLight.withAlpha (0.7f));
-        g.fillEllipse (Rectangle<float> (2.6f, 2.6f).withCentre (ring.tape.getPointAlongPath (d)));
-    }
-    {
-        const auto sp = ring.tape.getPointAlongPath (std::fmod (tapePhase + 60.0f, len));
-        g.setColour (Colour (0xffeeeae0));
-        g.fillRect (Rectangle<float> (5.0f, 5.0f).withCentre (sp));
-    }
 
-    // capstan (girano sempre) e rulli pressori (girano solo innestati)
+    // corpi di capstan, rulli pressori e guide (i segni di rotazione sono dinamici)
     for (int k = 0; k < 12; ++k)
     {
-        metalTop (g, ring.cap[k], ring.capR[k], capstanAngle + (float) k);
-        rubberTop (g, ring.pinch[k], ring.pinchR, k == activeKey ? tapePhase / ring.pinchR : (float) k);
+        metalTop (g, ring.cap[k], ring.capR[k], 0.0f, false);
+        rubberTop (g, ring.pinch[k], ring.pinchR, 0.0f);
         if (k == activeKey)
         {
             g.setColour (Col::amber.withAlpha (0.85f));
             g.drawEllipse (Rectangle<float> (2 * ring.pinchR + 6, 2 * ring.pinchR + 6).withCentre (ring.pinch[k]), 1.5f);
         }
     }
-    metalTop (g, ring.guideL, 5.0f, tapePhase / 5.0f);
-    metalTop (g, ring.guideR, 5.0f, tapePhase / 5.0f);
-    metalTop (g, ring.inner, 5.0f, tapePhase / 5.0f);
-    metalTop (g, ring.tension, ring.tensionR - 2.0f, tapePhase / ring.tensionR);
+    metalTop (g, ring.guideL, 5.0f, 0.0f, false);
+    metalTop (g, ring.guideR, 5.0f, 0.0f, false);
+    metalTop (g, ring.inner, 5.0f, 0.0f, false);
+    metalTop (g, ring.tension, ring.tensionR - 2.0f, 0.0f, false);
+
+    if (mode != 2)
+    {
+        // testina di lettura con schermo
+        Graphics::ScopedSaveState s (g);
+        g.addTransform (AffineTransform::rotation (degreesToRadians (352.0f), ring.head.x, ring.head.y));
+        auto hb = Rectangle<float> (22.0f, 15.0f).withCentre (ring.head.translated (0.0f, -10.0f));
+        g.setColour (Colours::black.withAlpha (0.3f));
+        g.fillRoundedRectangle (hb.translated (2, 3), 2.0f);
+        ColourGradient hg (Colour (0xfff2f2ef), hb.getX(), hb.getY(), Colour (0xff6e706c), hb.getRight(), hb.getBottom(), false);
+        g.setGradientFill (hg);
+        g.fillRoundedRectangle (hb, 2.0f);
+        g.setColour (Colour (0xff2b2b29));
+        g.drawRoundedRectangle (hb, 2.0f, 0.8f);
+        g.fillRect (Rectangle<float> (1.2f, 4.0f).withCentre ({ hb.getCentreX(), hb.getBottom() - 2.0f }));
+    }
+
+    // ---- zona centrale: spie dei capstan (spente) ----
+    engraved (g, mode == 1 ? String::fromUTF8 ("CABESTANS  ·  HORS SERVICE EN MODE COULISSE")
+                           : (mode == 2 ? String::fromUTF8 ("HAUTEUR  ·  TAMBOUR ROTATIF") : String ("CABESTANS")),
+              { lampX0, 40.0f, lampX1 - lampX0, 12.0f }, 8.5f, Justification::centredLeft, Col::engraveDim);
+    for (int k = 0; k < 12; ++k)
+    {
+        const auto lc = lampCentre (k);
+        drawLamp (g, lc, false);
+        engraved (g, String::fromUTF8 (noteNames[k]), Rectangle<float> (30.0f, 11.0f).withCentre (lc.translated (0.0f, 17.0f)), 7.0f);
+    }
+
+    // quadrante del tachimetro (scala 0–2, o 0–4 con OCTAVE)
+    {
+        const Tacho t (scaleMax);
+        g.setColour (Colour (0xff1d1d1c));
+        g.fillRoundedRectangle (t.face.expanded (6.0f), 3.0f);
+        ColourGradient fg (Colour (0xfff8f3e2), t.face.getX(), t.face.getY(), Colour (0xffe2dac2), t.face.getX(), t.face.getBottom(), false);
+        g.setGradientFill (fg);
+        g.fillRect (t.face);
+        for (int i = 0; i <= 20; ++i)
+        {
+            const float a = t.angleFor ((float) i * scaleMax / 20.0f);
+            g.setColour (Col::engrave);
+            g.drawLine (Line<float> (t.pivot.getPointOnCircumference (t.rad * 0.78f, a),
+                                     t.pivot.getPointOnCircumference (t.rad * (i % 5 == 0 ? 0.88f : 0.83f), a)), i % 5 == 0 ? 1.4f : 0.9f);
+        }
+        if (scaleMax > 2.5f)
+        {
+            for (int v = 0; v <= 4; ++v)
+                engraved (g, String (v), Rectangle<float> (24.0f, 12.0f).withCentre (t.pivot.getPointOnCircumference (t.rad * 0.96f, t.angleFor ((float) v))), 8.5f);
+        }
+        else
+        {
+            const std::pair<float, const char*> marks[] = { { 0.0f, "0" }, { 0.5f, "\xc2\xbd" }, { 1.0f, "1" }, { 1.5f, "1\xc2\xbd" }, { 2.0f, "2" } };
+            for (auto [v, txt] : marks)
+                engraved (g, String::fromUTF8 (txt), Rectangle<float> (24.0f, 12.0f).withCentre (t.pivot.getPointOnCircumference (t.rad * 0.96f, t.angleFor (v))), 8.5f);
+        }
+    }
+
+    // riquadro dei comandi della testina rotante
+    {
+        const auto box = Rectangle<float> (lampX0, 250.0f, lampX1 - lampX0, 120.0f);
+        g.setColour (Colours::black.withAlpha (mode == 2 ? 0.07f : 0.03f));
+        g.fillRoundedRectangle (box, 4.0f);
+        g.setColour (Colours::black.withAlpha (0.18f));
+        g.drawRoundedRectangle (box, 4.0f, 1.0f);
+        engraved (g, String::fromUTF8 ("TÊTE ROTATIVE  ·  UNIVERSEL"), box.reduced (8.0f, 4.0f).removeFromTop (12.0f), 8.0f,
+                  Justification::centredLeft, mode == 2 ? Col::engrave : Col::engraveDim);
+    }
+
+    for (auto p : { area.getTopLeft().translated (12, 12), area.getBottomLeft().translated (12, -12) })
+        screw (g, p, 4.5f, 0.9f);
+}
+
+void DeckView::paint (Graphics& g)
+{
+    const auto& disp = proc.engine.display;
+    const int mode = (int) proc.apvts.getRawParameterValue ("mode")->load();
+    const bool octave = proc.apvts.getRawParameterValue ("octave")->load() > 0.5f;
+    const float speed = disp.speed.load();
+    // cromatico: innestato il capstan del tasto; coulisse e universale: il nastro è
+    // trascinato dal primo capstan a velocità variabile
+    const bool engaged = disp.engaged.load();
+    const int activeKey = mode == 0 ? (speed > 0.001f ? disp.activeKey.load() : -1)
+                                    : (engaged ? 0 : -1);
+    // spie: il tasto suonato (in universale indica l'altezza del tamburo)
+    const int lampKey = mode == 1 ? -1 : (engaged || speed > 0.001f ? disp.activeKey.load() : -1);
+    const float scaleMax = (octave && mode != 1) ? 4.0f : 2.0f;
+
+    // ---- strato fisso, ricostruito solo quando cambia qualcosa che vi compare ----
+    const float pix = jmax (1.0f, g.getInternalContext().getPhysicalPixelScaleFactor());
+    const int key = mode * 100000 + (activeKey + 1) * 1000 + (int) scaleMax * 100 + roundToInt (pix * 10.0f);
+    if (key != cacheKey || cache.isNull())
+    {
+        cache = Image (Image::ARGB, roundToInt ((float) getWidth() * pix), roundToInt ((float) getHeight() * pix), true);
+        Graphics cg (cache);
+        cg.addTransform (AffineTransform::scale (pix));
+        paintStatic (cg, mode, activeKey, scaleMax);
+        cacheKey = key;
+    }
+    g.drawImageTransformed (cache, AffineTransform::scale (1.0f / pix));
+
+    // ---- strato mobile ----
+    Ring ring (wellCentre, 130.0f, activeKey);
+
+    // segni sul nastro che scorrono (nascosti dove il nastro passa sotto capstan e rulli)
+    auto hidden = [&] (Point<float> pt)
+    {
+        for (int k = 0; k < 12; ++k)
+            if (pt.getDistanceFrom (ring.cap[k]) < ring.capR[k] + 2.8f
+                || pt.getDistanceFrom (ring.pinch[k]) < ring.pinchR + 2.0f)
+                return true;
+        for (auto gp : { ring.guideL, ring.guideR, ring.inner })
+            if (pt.getDistanceFrom (gp) < 7.5f) return true;
+        return pt.getDistanceFrom (ring.tension) < ring.tensionR + 0.5f;
+    };
+    const float len = ring.tape.getLength();
+    g.setColour (Col::tapeLight.withAlpha (0.7f));
+    for (float d = std::fmod (tapePhase, 22.0f); d < len; d += 22.0f)
+    {
+        const auto pt = ring.tape.getPointAlongPath (d);
+        if (! hidden (pt))
+            g.fillEllipse (Rectangle<float> (2.6f, 2.6f).withCentre (pt));
+    }
+    {
+        const auto sp = ring.tape.getPointAlongPath (std::fmod (tapePhase + 60.0f, len));
+        if (! hidden (sp))
+        {
+            g.setColour (Colour (0xffeeeae0));
+            g.fillRect (Rectangle<float> (5.0f, 5.0f).withCentre (sp));
+        }
+    }
+
+    // segni di rotazione: capstan (girano sempre) e guide (girano con il nastro)
+    g.setColour (Colour (0xff4f514d).withAlpha (0.7f));
+    auto mark = [&] (Point<float> c, float r, float rot)
+    {
+        g.drawLine (Line<float> (c.getPointOnCircumference (r * 0.3f, rot), c.getPointOnCircumference (r * 0.62f, rot)), 1.3f);
+    };
+    for (int k = 0; k < 12; ++k)
+        mark (ring.cap[k], ring.capR[k], capstanAngle + (float) k);
+    mark (ring.guideL, 5.0f, tapePhase / 5.0f);
+    mark (ring.guideR, 5.0f, tapePhase / 5.0f);
+    mark (ring.inner, 5.0f, tapePhase / 5.0f);
+    mark (ring.tension, ring.tensionR - 2.0f, tapePhase / ring.tensionR);
 
     if (mode == 2)
     {
@@ -570,104 +722,56 @@ void DeckView::paint (Graphics& g)
         g.fillEllipse (Rectangle<float> (2 * dr, 2 * dr).withCentre (dc));
         g.setColour (Colour (0xff4a4c48));
         g.drawEllipse (Rectangle<float> (2 * dr, 2 * dr).withCentre (dc), 0.9f);
+        g.setColour (Colour (0xff2b2b29));
         for (int i = 0; i < N; ++i)
         {
             const float a = rot + (float) i * MathConstants<float>::twoPi / (float) N;
-            const auto hp = dc.getPointOnCircumference (dr - 3.0f, a);
-            g.setColour (Colour (0xff2b2b29));
-            g.fillRect (Rectangle<float> (4.0f, 4.0f).withCentre (hp));
+            g.fillRect (Rectangle<float> (4.0f, 4.0f).withCentre (dc.getPointOnCircumference (dr - 3.0f, a)));
         }
         metalTop (g, dc, 4.0f, 0.0f, false);
     }
-    else
-    // testina di lettura con schermo
-    {
-        Graphics::ScopedSaveState s (g);
-        g.addTransform (AffineTransform::rotation (degreesToRadians (352.0f), ring.head.x, ring.head.y));
-        auto hb = Rectangle<float> (22.0f, 15.0f).withCentre (ring.head.translated (0.0f, -10.0f));
-        g.setColour (Colours::black.withAlpha (0.3f));
-        g.fillRoundedRectangle (hb.translated (2, 3), 2.0f);
-        ColourGradient hg (Colour (0xfff2f2ef), hb.getX(), hb.getY(), Colour (0xff6e706c), hb.getRight(), hb.getBottom(), false);
-        g.setGradientFill (hg);
-        g.fillRoundedRectangle (hb, 2.0f);
-        g.setColour (Colour (0xff2b2b29));
-        g.drawRoundedRectangle (hb, 2.0f, 0.8f);
-        g.fillRect (Rectangle<float> (1.2f, 4.0f).withCentre ({ hb.getCentreX(), hb.getBottom() - 2.0f }));
-    }
 
-    // ---- zona centrale: spie dei capstan e velocità ----
-    const float lx0 = 432.0f, lx1 = 700.0f;
-    engraved (g, mode == 1 ? String::fromUTF8 ("CABESTANS  ·  HORS SERVICE EN MODE COULISSE")
-                           : (mode == 2 ? String::fromUTF8 ("HAUTEUR  ·  TAMBOUR ROTATIF") : String ("CABESTANS")),
-              { lx0, 40.0f, lx1 - lx0, 12.0f }, 8.5f, Justification::centredLeft, Col::engraveDim);
-    for (int k = 0; k < 12; ++k)
-    {
-        const float x = lx0 + 10.0f + (float) k * ((lx1 - lx0 - 20.0f) / 11.0f);
-        const Point<float> lc { x, 76.0f };
-        const bool on = k == lampKey;
-        g.setColour (Colour (0xff2a2a28));
-        g.fillEllipse (Rectangle<float> (15.0f, 15.0f).withCentre (lc));
-        if (on) { g.setColour (Col::amber.withAlpha (0.3f)); g.fillEllipse (Rectangle<float> (22.0f, 22.0f).withCentre (lc)); }
-        g.setColour (on ? Col::amber : Col::amber.darker (2.0f));
-        g.fillEllipse (Rectangle<float> (10.0f, 10.0f).withCentre (lc));
-        g.setColour (Colours::white.withAlpha (on ? 0.6f : 0.2f));
-        g.fillEllipse (Rectangle<float> (3.5f, 3.5f).withCentre (lc.translated (-1.8f, -1.8f)));
-        engraved (g, String::fromUTF8 (noteNames[k]), Rectangle<float> (30.0f, 11.0f).withCentre (lc.translated (0.0f, 17.0f)), 7.0f);
-    }
+    // spia accesa
+    if (lampKey >= 0 && lampKey < 12)
+        drawLamp (g, lampCentre (lampKey), true);
 
-    // tachimetro del nastro
+    // tachimetro: lancetta e valori
     {
-        auto face = Rectangle<float> (lx0, 112.0f, lx1 - lx0, 128.0f);
-        g.setColour (Colour (0xff1d1d1c));
-        g.fillRoundedRectangle (face, 3.0f);
-        face = face.reduced (6.0f);
-        ColourGradient fg (Colour (0xfff8f3e2), face.getX(), face.getY(), Colour (0xffe2dac2), face.getX(), face.getBottom(), false);
-        g.setGradientFill (fg);
-        g.fillRect (face);
-        const Point<float> pivot { face.getCentreX(), face.getBottom() + 30.0f };
-        const float rad = 140.0f;
-        auto angleFor = [] (float v) { return -0.8f + 1.6f * jlimit (0.0f, 1.0f, v / 2.0f); };
-        for (int i = 0; i <= 20; ++i)
-        {
-            const float v = (float) i * 0.1f;
-            const float a = angleFor (v);
-            g.setColour (Col::engrave);
-            g.drawLine (Line<float> (pivot.getPointOnCircumference (rad * 0.78f, a),
-                                     pivot.getPointOnCircumference (rad * (i % 5 == 0 ? 0.88f : 0.83f), a)), i % 5 == 0 ? 1.4f : 0.9f);
-        }
-        const std::pair<float, const char*> marks[] = { { 0.0f, "0" }, { 0.5f, "\xc2\xbd" }, { 1.0f, "1" }, { 1.5f, "1\xc2\xbd" }, { 2.0f, "2" } };
-        for (auto [v, t] : marks)
-            engraved (g, String::fromUTF8 (t), Rectangle<float> (24.0f, 12.0f).withCentre (pivot.getPointOnCircumference (rad * 0.96f, angleFor (v))), 8.5f);
+        const Tacho t (scaleMax);
         engraved (g, mode == 1 ? String::fromUTF8 ("VITESSE DU RUBAN  ·  MOTEUR ") + String (disp.motorSpeed.load(), 2).replaceCharacter ('.', ',')
                                : (mode == 2 ? String::fromUTF8 ("VITESSE DU RUBAN  ·  HAUTEUR ") + String (disp.pitch.load(), 2).replaceCharacter ('.', ',')
                                             : String ("VITESSE DU RUBAN")),
-                  { face.getX(), face.getBottom() - 34.0f, face.getWidth(), 12.0f }, 8.5f);
-        engraved (g, String (speed, 3).replaceCharacter ('.', ','), { face.getX(), face.getBottom() - 20.0f, face.getWidth(), 14.0f }, 10.0f);
+                  { t.face.getX(), t.face.getBottom() - 34.0f, t.face.getWidth(), 12.0f }, 8.5f);
+        engraved (g, String (speed, 3).replaceCharacter ('.', ','), { t.face.getX(), t.face.getBottom() - 20.0f, t.face.getWidth(), 14.0f }, 10.0f);
         Graphics::ScopedSaveState s (g);
-        g.reduceClipRegion (face.toNearestInt());
+        g.reduceClipRegion (t.face.toNearestInt());
         g.setColour (Col::engrave);
-        g.drawLine (Line<float> (pivot.getPointOnCircumference (rad * 0.45f, angleFor (speed)),
-                                 pivot.getPointOnCircumference (rad * 0.9f, angleFor (speed))), 1.4f);
+        g.drawLine (Line<float> (t.pivot.getPointOnCircumference (t.rad * 0.45f, t.angleFor (speed)),
+                                 t.pivot.getPointOnCircumference (t.rad * 0.9f, t.angleFor (speed))), 1.4f);
         g.setColour (Colours::white.withAlpha (0.15f));
-        g.fillRect (face.withHeight (face.getHeight() * 0.3f));
+        g.fillRect (t.face.withHeight (t.face.getHeight() * 0.3f));
     }
-    // riquadro dei comandi della testina rotante
-    {
-        const auto box = Rectangle<float> (lx0, 250.0f, lx1 - lx0, 120.0f);
-        g.setColour (Colours::black.withAlpha (mode == 2 ? 0.07f : 0.03f));
-        g.fillRoundedRectangle (box, 4.0f);
-        g.setColour (Colours::black.withAlpha (0.18f));
-        g.drawRoundedRectangle (box, 4.0f, 1.0f);
-        engraved (g, String::fromUTF8 ("TÊTE ROTATIVE  ·  UNIVERSEL"), box.reduced (8.0f, 4.0f).removeFromTop (12.0f), 8.0f,
-                  Justification::centredLeft, mode == 2 ? Col::engrave : Col::engraveDim);
-    }
-
-    for (auto p : { area.getTopLeft().translated (12, 12), area.getBottomLeft().translated (12, -12) })
-        screw (g, p, 4.5f, 0.9f);
 }
 
-
 //==============================================================================
+void TapeStrip::refreshIfChanged()
+{
+    // firma di ciò che la finestra mostra: posizione, regione, sorgente, panoramica, stato
+    const auto& d = proc.engine.display;
+    double sig = d.position.load() * 7.0 + d.recSeconds.load() * 13.0 + (d.recording.load() ? 17.0 : 0.0)
+               + proc.apvts.getRawParameterValue ("source")->load() * 19.0
+               + proc.apvts.getRawParameterValue ("loopStart")->load() * 23.0
+               + proc.apvts.getRawParameterValue ("loopLength")->load() * 29.0
+               + (proc.isLoading() ? 31.0 : 0.0) + proc.getFileSeconds() * 37.0;
+    for (size_t i = 0; i < 512; i += 8)
+        sig += (proc.filePeaks[i].load() + d.recPeaks[i].load()) * (double) (i + 1);
+    if (sig != lastSignature)
+    {
+        lastSignature = sig;
+        repaint();
+    }
+}
+
 void TapeStrip::paint (Graphics& g)
 {
     auto r = getLocalBounds().toFloat();
@@ -765,6 +869,16 @@ int OctaveKeyboard::keyAt (Point<float> p) const
     for (int k = 0; k < 12; ++k)
         if (! isBlack (k) && keyBounds (k).contains (p)) return k;
     return -1;
+}
+
+void OctaveKeyboard::refreshIfChanged()
+{
+    const int shown = mouseKey * 16 + proc.engine.display.activeKey.load();
+    if (shown != lastShown)
+    {
+        lastShown = shown;
+        repaint();
+    }
 }
 
 void OctaveKeyboard::paint (Graphics& g)
@@ -894,6 +1008,9 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     setupToggle (tMonitor,  aMonitor,  "monitor",  String::fromUTF8 ("ÉCOUTE"));
     setupToggle (tRestart,  aRestart,  "restart",  "RETOUR");
     setupToggle (tExtended, aExtended, "extended", String::fromUTF8 ("ÉTENDU"));
+    setupToggle (tOctave,   aOctave,   "octave",   "OCTAVE");
+    setupToggle (tMono,     aMono,     "mono",     "MONO");
+    setupToggle (tSplice,   aSplice,   "splice",   "COLLURE");
     tRecord.setComponentID ("rec");
 
     registerCC (kStart.slider, "loopStart");   registerCC (kLength.slider, "loopLength");
@@ -903,6 +1020,8 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     registerCC (kMode.slider, "mode");         registerCC (kSource.slider, "source");
     registerCC (tRecord, "record");            registerCC (tMonitor, "monitor");
     registerCC (tRestart, "restart");          registerCC (tExtended, "extended");
+    registerCC (tOctave, "octave");            registerCC (tMono, "mono");
+    registerCC (tSplice, "splice");
     registerCC (kHeads.slider, "heads");       registerCC (kWindow.slider, "window");
     registerCC (kHardness.slider, "hardness");
 
@@ -1082,7 +1201,7 @@ void PhonogeneEditor::resized()
              &kStart.slider, &kLength.slider, &kInertia.slider, &kLevel.slider, &kWow.slider, &kHiss.slider,
              &kDrive.slider, &kMode.slider, &kSource.slider, &kCoulisse.slider,
              &kHeads.slider, &kWindow.slider, &kHardness.slider,
-             &tRecord, &tMonitor, &tRestart, &tExtended })
+             &tRecord, &tMonitor, &tRestart, &tExtended, &tOctave, &tMono, &tSplice })
         c->setTransform (t);
 
     texture = {};
@@ -1095,7 +1214,10 @@ void PhonogeneEditor::layoutLogical()
     loadButton.setBounds (862, 416, 114, 34);
     exportButton.setBounds (862, 454, 114, 32);
 
-    keyboard.setBounds (24, 500, 404, 218);
+    keyboard.setBounds (24, 500, 344, 218);
+    // leve della tastiera: seconda ottava ed estensione
+    tOctave.setBounds   (378, 508, 54, 94);
+    tExtended.setBounds (378, 614, 54, 94);
 
     // leva
     kCoulisse.slider.setBounds (480, 518, 44, 170);
@@ -1109,20 +1231,21 @@ void PhonogeneEditor::layoutLogical()
     kWow.slider.setBounds    (x0 + cw * 0, 612, cw, kh);
     kHiss.slider.setBounds   (x0 + cw * 1, 612, cw, kh);
     kDrive.slider.setBounds  (x0 + cw * 2, 612, cw, kh);
-    tRestart.setBounds       (x0 + cw * 3 + 2,  606, 50, 94);
-    tExtended.setBounds      (x0 + cw * 3 + 54, 606, 50, 94);
+    tRestart.setBounds       (x0 + cw * 3 - 4,  606, 56, 94);
+    tSplice.setBounds        (x0 + cw * 3 + 52, 606, 56, 94);
 
     // zona comandi del deck
     const int dx = 24 + 952 - 226;
     kMode.slider.setBounds   (dx + 22,  150, 92, 80);
     kSource.slider.setBounds (dx + 122, 150, 92, 80);
-    tRecord.setBounds        (dx + 40,  264, 60, 92);
+    tRecord.setBounds        (dx + 20,  264, 60, 92);
 
     // testina rotante, nel riquadro sotto il tachimetro
     kHeads.slider.setBounds    (470, 312, 72, 54);
     kWindow.slider.setBounds   (550, 304, 84, 62);
     kHardness.slider.setBounds (638, 304, 84, 62);
-    tMonitor.setBounds       (dx + 128, 262, 56, 94);
+    tMonitor.setBounds       (dx + 92,  262, 56, 94);
+    tMono.setBounds          (dx + 156, 262, 56, 94);
 }
 
 void PhonogeneEditor::registerCC (Component& c, const String& paramId)
@@ -1183,6 +1306,7 @@ void PhonogeneEditor::timerCallback()
     const bool coulisseMode = (int) proc.apvts.getRawParameterValue ("mode")->load() == 1;
     kCoulisse.slider.setAlpha (coulisseMode ? 1.0f : 0.5f);
     tExtended.setAlpha (coulisseMode ? 0.5f : 1.0f);    // in coulisse l'altezza del tasto non conta
+    tOctave.setAlpha (coulisseMode ? 0.5f : 1.0f);
     const bool universal = (int) proc.apvts.getRawParameterValue ("mode")->load() == 2;
     kCoulisse.slider.setAlpha (coulisseMode || universal ? 1.0f : 0.5f);   // in universale la leva regola la durata
     for (auto* k : { &kHeads, &kWindow, &kHardness })
@@ -1193,8 +1317,8 @@ void PhonogeneEditor::timerCallback()
         repaint();
     lastLearn = learn;
     deck.repaint();
-    strip.repaint();
-    keyboard.repaint();
+    strip.refreshIfChanged();
+    keyboard.refreshIfChanged();
 }
 
 void PhonogeneEditor::openFileChooser()

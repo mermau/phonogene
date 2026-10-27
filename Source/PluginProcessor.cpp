@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <cstring>
 
 using APVTS = juce::AudioProcessorValueTreeState;
 
@@ -225,6 +226,7 @@ void PhonogeneProcessor::stageCurrentRecording()
     const int len = engine.getRecordedLength();
     engine.copyRecording (stagedRec, len);
     stagedRecLen = len;
+    ++stagedGen;
     stagedRecRate = currentRate;
 }
 
@@ -488,34 +490,79 @@ void PhonogeneProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("ccMap", map.joinIntoString (","), nullptr);
     state.setProperty ("ccMapVersion", 2, nullptr);
 
-    // nastro registrato, compresso in FLAC 24 bit
-    juce::AudioBuffer<float> rec;
-    int len = 0;
-    double rate = 0.0;
-    if (getRecordingForSave (rec, len, rate))
+    state.removeProperty ("recData", nullptr);
+
+    // Formato: "PHG2" | XML dei parametri | FLAC del nastro registrato (binario, senza base64).
+    // La compressione si rifà solo se il nastro è cambiato: i salvataggi successivi sono immediati.
+    const bool recording = engine.display.recording.load();
+    const juce::int64 key = ((juce::int64) engine.display.recRevision.load() << 20) ^ stagedGen;
+    if (recording || key != cachedFlacKey)
     {
-        juce::MemoryBlock block;
+        cachedFlac.reset();
+        juce::AudioBuffer<float> rec;
+        int len = 0;
+        double rate = 0.0;
+        if (getRecordingForSave (rec, len, rate))
         {
-            auto* mos = new juce::MemoryOutputStream (block, false);
+            auto* mos = new juce::MemoryOutputStream (cachedFlac, false);
             juce::FlacAudioFormat flac;
             std::unique_ptr<juce::AudioFormatWriter> w (flac.createWriterFor (mos, rate, 2, 24, {}, 0));
             if (w != nullptr) w->writeFromAudioSampleBuffer (rec, 0, len);
             else delete mos;
         }
-        state.setProperty ("recData", block.toBase64Encoding(), nullptr);
-        state.setProperty ("recRate", rate, nullptr);
+        cachedFlacKey = recording ? -1 : key;
     }
-    else
-    {
-        state.removeProperty ("recData", nullptr);
-    }
+
+    juce::MemoryBlock xmlBlock;
     if (auto xml = state.createXml())
-        copyXmlToBinary (*xml, destData);
+        copyXmlToBinary (*xml, xmlBlock);
+
+    juce::MemoryOutputStream out (destData, false);
+    out.write ("PHG2", 4);
+    out.writeInt64 ((juce::int64) xmlBlock.getSize());
+    out.write (xmlBlock.getData(), xmlBlock.getSize());
+    out.writeInt64 ((juce::int64) cachedFlac.getSize());
+    if (cachedFlac.getSize() > 0)
+        out.write (cachedFlac.getData(), cachedFlac.getSize());
+}
+
+void PhonogeneProcessor::restoreRecordingFromFlac (const void* data, size_t size)
+{
+    juce::FlacAudioFormat flac;
+    std::unique_ptr<juce::AudioFormatReader> reader (
+        flac.createReaderFor (new juce::MemoryInputStream (data, size, false), true));
+    if (reader != nullptr && reader->lengthInSamples > 0)
+    {
+        const int n = (int) reader->lengthInSamples;
+        stagedRec.setSize (2, n);
+        reader->read (&stagedRec, 0, n, 0, true, true);
+        stagedRecLen = n;
+        stagedRecRate = reader->sampleRate;
+        ++stagedGen;
+        pushStagedRecording();
+    }
 }
 
 void PhonogeneProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    if (auto xml = getXmlFromBinary (data, sizeInBytes))
+    // formato attuale: "PHG2" + XML + FLAC binario; i progetti precedenti usano solo l'XML
+    const void* xmlData = data;
+    int xmlSize = sizeInBytes;
+    if (sizeInBytes > 12 && std::memcmp (data, "PHG2", 4) == 0)
+    {
+        juce::MemoryInputStream in (data, (size_t) sizeInBytes, false);
+        in.skipNextBytes (4);
+        const auto xs = in.readInt64();
+        if (xs <= 0 || xs > in.getNumBytesRemaining()) return;
+        xmlData = static_cast<const char*> (data) + in.getPosition();
+        xmlSize = (int) xs;
+        in.skipNextBytes (xs);
+        const auto fs = in.readInt64();
+        if (fs > 0 && fs <= in.getNumBytesRemaining())
+            restoreRecordingFromFlac (static_cast<const char*> (data) + in.getPosition(), (size_t) fs);
+    }
+
+    if (auto xml = getXmlFromBinary (xmlData, xmlSize))
     {
         auto state = juce::ValueTree::fromXml (*xml);
         if (! state.isValid())
@@ -528,20 +575,7 @@ void PhonogeneProcessor::setStateInformation (const void* data, int sizeInBytes)
         {
             juce::MemoryBlock block;
             if (block.fromBase64Encoding (state.getProperty ("recData").toString()))
-            {
-                juce::FlacAudioFormat flac;
-                std::unique_ptr<juce::AudioFormatReader> reader (
-                    flac.createReaderFor (new juce::MemoryInputStream (block, false), true));
-                if (reader != nullptr && reader->lengthInSamples > 0)
-                {
-                    const int n = (int) reader->lengthInSamples;
-                    stagedRec.setSize (2, n);
-                    reader->read (&stagedRec, 0, n, 0, true, true);
-                    stagedRecLen = n;
-                    stagedRecRate = reader->sampleRate;
-                    pushStagedRecording();
-                }
-            }
+                restoreRecordingFromFlac (block.getData(), block.getSize());
         }
         state.removeProperty ("recData", nullptr);   // non resta nell'albero dei parametri
         // le mappe salvate prima della versione 2 usavano altri CC predefiniti: si riparte dai nuovi

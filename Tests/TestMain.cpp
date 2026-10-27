@@ -607,6 +607,8 @@ int main (int argc, char** argv)
     setParam (p, "coulisse", 0.4f);
     r.run (0.8, {}, [] { MidiBuffer m; m.addEvent (MidiMessage::noteOff (1, 60), 0); m.addEvent (MidiMessage::noteOn (1, 67, 1.0f), 1); return m; }());
     setParam (p, "record", 1.0f);
+    setParam (p, "octave", 1.0f);
+    r.run (0.3);
     ed->repaint();
     auto snap3 = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.5f);
     setParam (p, "record", 0.0f);

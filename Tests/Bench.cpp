@@ -91,6 +91,11 @@ int main (int argc, char** argv)
         const auto t0 = Clock::now();
         p.getStateInformation (mb);
         const double el = std::chrono::duration<double> (Clock::now() - t0).count();
+        MemoryBlock mb2;
+        const auto t2 = Clock::now();
+        p.getStateInformation (mb2);
+        const double el2 = std::chrono::duration<double> (Clock::now() - t2).count();
+        std::cout << "--- salvataggio successivo (nastro invariato): " << String (el2 * 1000.0, 1) << " ms\n";
         std::cout << "--- stato con 30 s registrati: " << mb.getSize() / 1024 << " KB, " << String (el * 1000.0, 1) << " ms\n";
         setParam (p, "source", 0.0f);
     }

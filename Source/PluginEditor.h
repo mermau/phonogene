@@ -58,9 +58,13 @@ public:
     void advance (float dt);
 
 private:
+    void paintStatic (juce::Graphics&, int mode, int activeKey, float scaleMax);
+
     PhonogeneProcessor& proc;
     float tapePhase = 0.0f;
     float capstanAngle = 0.0f;
+    juce::Image cache;      // parti fisse del deck
+    int cacheKey = -1;
 };
 
 // Finestra con il contenuto del nastro, la regione dell'anello e la testina.
@@ -69,9 +73,11 @@ class TapeStrip : public juce::Component
 public:
     explicit TapeStrip (PhonogeneProcessor& p) : proc (p) {}
     void paint (juce::Graphics&) override;
+    void refreshIfChanged();   // ridisegna solo se qualcosa di visibile è cambiato
 
 private:
     PhonogeneProcessor& proc;
+    double lastSignature = -1.0;
 };
 
 // Tastiera di un'ottava.
@@ -83,9 +89,11 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void refreshIfChanged();
 
 private:
     int keyAt (juce::Point<float>) const;
+    int lastShown = -2;
     juce::Rectangle<float> keyBounds (int key) const;
     static bool isBlack (int key) { return key == 1 || key == 3 || key == 6 || key == 8 || key == 10; }
 
@@ -137,8 +145,8 @@ private:
 
     Knob kStart, kLength, kInertia, kLevel, kWow, kHiss, kDrive, kMode, kSource, kCoulisse;
     Knob kHeads, kWindow, kHardness;   // testina rotante
-    PhonoToggle tRecord, tMonitor, tRestart, tExtended;
-    std::unique_ptr<ButtonAtt> aRecord, aMonitor, aRestart, aExtended;
+    PhonoToggle tRecord, tMonitor, tRestart, tExtended, tOctave, tMono, tSplice;
+    std::unique_ptr<ButtonAtt> aRecord, aMonitor, aRestart, aExtended, aOctave, aMono, aSplice;
     juce::TextButton loadButton { "CHARGER" };
     juce::TextButton exportButton { "EXPORTER" };
     void exportRecording();

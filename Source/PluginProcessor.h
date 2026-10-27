@@ -94,6 +94,10 @@ private:
     int    stagedRecLen = 0;
     double stagedRecRate = 0.0;
     void stageCurrentRecording();
+    void restoreRecordingFromFlac (const void* data, size_t size);
+    juce::int64 stagedGen = 0;
+    juce::MemoryBlock cachedFlac;            // nastro registrato già compresso per il salvataggio
+    juce::int64 cachedFlacKey = -1;
     void pushStagedRecording();
     // il nastro da salvare/esportare: quello nel motore o, se non ancora caricato, la copia di appoggio
     bool getRecordingForSave (juce::AudioBuffer<float>& dest, int& len, double& rate) const;
