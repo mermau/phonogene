@@ -11,7 +11,8 @@ const PhonogeneProcessor::CCTarget PhonogeneProcessor::ccTargets[numCCTargets] =
     { "heads", 81 }, { "window", 82 }, { "hardness", 83 },
     { "coulisse", 1 },
     { "mode", 27 }, { "source", 28 }, { "record", 29 }, { "monitor", 30 },
-    { "restart", 31 }, { "extended", 14 }
+    { "restart", 31 }, { "extended", 14 },
+    { "octave", 15 }, { "mono", 16 }, { "splice", 17 }
 };
 
 namespace
@@ -46,6 +47,9 @@ PhonogeneProcessor::PhonogeneProcessor()
     pHeads    = apvts.getRawParameterValue ("heads");
     pWindow   = apvts.getRawParameterValue ("window");
     pHardness = apvts.getRawParameterValue ("hardness");
+    pOctave   = apvts.getRawParameterValue ("octave");
+    pMono     = apvts.getRawParameterValue ("mono");
+    pSplice   = apvts.getRawParameterValue ("splice");
 
     resetDefaultCCs();
     for (auto& v : pendingCC) v.store (-1.0f);
@@ -142,6 +146,10 @@ APVTS::ParameterLayout PhonogeneProcessor::createLayout()
     l.add (std::make_unique<AudioParameterBool> (ParameterID { "monitor", 1 }, "Ecoute entree", false));
     l.add (std::make_unique<AudioParameterBool> (ParameterID { "restart", 1 }, "Retour au debut", true));
     l.add (std::make_unique<AudioParameterBool> (ParameterID { "extended", 1 }, "Clavier etendu", false));
+    // il cromatico trasponeva «sur une à deux octaves» (INA GRM): seconda ottava della tastiera
+    l.add (std::make_unique<AudioParameterBool> (ParameterID { "octave", 1 }, "Octave", false));
+    l.add (std::make_unique<AudioParameterBool> (ParameterID { "mono", 1 }, "Mono", false));
+    l.add (std::make_unique<AudioParameterBool> (ParameterID { "splice", 1 }, "Collure", false));
 
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "loopStart", 1 }, "Debut boucle",
                                                   NormalisableRange<float> (0.0f, 1.0f), 0.0f, fmt()));
@@ -167,7 +175,7 @@ APVTS::ParameterLayout PhonogeneProcessor::createLayout()
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { "heads", 1 }, "Tetes",
                                                    StringArray { "2", "3", "4" }, 2));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "window", 1 }, "Fenetre",
-                                                  NormalisableRange<float> (10.0f, 250.0f, 0.0f, 0.5f), 60.0f,
+                                                  NormalisableRange<float> (10.0f, 250.0f, 0.0f, 0.5f), 40.0f,
                                                   fmt().withLabel ("ms")));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "hardness", 1 }, "Durete",
                                                   NormalisableRange<float> (0.0f, 1.0f), 0.5f, fmt()));
@@ -323,6 +331,9 @@ EngineParams PhonogeneProcessor::readParams() const
     p.heads      = 2 + (int) pHeads->load();
     p.windowMs   = pWindow->load();
     p.hardness   = pHardness->load();
+    p.octave     = pOctave->load() > 0.5f;
+    p.mono       = pMono->load() > 0.5f;
+    p.splice     = pSplice->load() > 0.5f;
     return p;
 }
 

@@ -52,7 +52,7 @@ public:
 
     // ---- MIDI CC: assegnazioni predefinite modificabili con MIDI learn ----
     struct CCTarget { const char* paramId; int defaultCC; };
-    static constexpr int numCCTargets = 17;
+    static constexpr int numCCTargets = 20;
     static const CCTarget ccTargets[numCCTargets];
 
     int  ccIndexForParam (const juce::String& paramId) const;
@@ -100,7 +100,8 @@ private:
 
     std::atomic<float>* pMode {}, *pSource {}, *pRecord {}, *pMonitor {}, *pRestart {}, *pExtended {},
                       *pStart {}, *pLength {}, *pInertia {}, *pWow {}, *pHiss {}, *pDrive {},
-                      *pLevel {}, *pCoulisse {}, *pBend {}, *pHeads {}, *pWindow {}, *pHardness {};
+                      *pLevel {}, *pCoulisse {}, *pBend {}, *pHeads {}, *pWindow {}, *pHardness {},
+                      *pOctave {}, *pMono {}, *pSplice {};
 
     // decodifica + ricampionamento di un file (thread qualsiasi)
     static std::unique_ptr<Tape> decodeFile (const juce::File& file, double rate, float& seconds);

@@ -19,6 +19,19 @@ static void writeSine (const File& f, double freq, double sr, double secs)
     w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
 }
 
+static void writeStereo (const File& f, double sr, double secs, std::function<float (int, int)> gen)
+{
+    f.deleteFile();
+    WavAudioFormat wav;
+    std::unique_ptr<OutputStream> os (f.createOutputStream().release());
+    std::unique_ptr<AudioFormatWriter> w (wav.createWriterFor (os.get(), sr, 2, 24, {}, 0));
+    os.release();
+    AudioBuffer<float> b (2, (int) (sr * secs));
+    for (int i = 0; i < b.getNumSamples(); ++i)
+        for (int ch = 0; ch < 2; ++ch) b.setSample (ch, i, gen (ch, i));
+    w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+}
+
 struct Runner
 {
     PhonogeneProcessor& p;
@@ -387,6 +400,142 @@ int main (int argc, char** argv)
         setParam (p, "coulisse", 1.0f);
         setParam (p, "mode", 0.0f);
         r.run (0.1);
+    }
+
+    // ---- migliorie di fedeltà ----
+    {
+        r.run (0.3, {}, [] { MidiBuffer m; for (int n = 0; n < 128; ++n) m.addEvent (MidiMessage::noteOff (1, n), 0); return m; }());
+        setParam (p, "source", 0.0f);
+        setParam (p, "mode", 0.0f);
+        setParam (p, "hiss", 0.0f);
+        setParam (p, "wow", 0.0f);
+        setParam (p, "extended", 0.0f);
+        p.housekeeping();
+        p.loadFile (wav);
+        r.run (0.05);
+        p.housekeeping();
+
+        // OCTAVE: seconda ottava della tastiera
+        setParam (p, "octave", 1.0f);
+        r.run (1.0, {}, note (60, true));
+        check ("OCTAVE cromatico: DO a 2x (Hz)", r.freqOfLast (0.5), 880.0, 8.0);
+        r.run (0.4, {}, note (60, false));
+        setParam (p, "mode", 2.0f);
+        setParam (p, "coulisse", 0.5f);
+        r.run (1.0, {}, note (67, true));
+        const double sol2 = 2.0 * 440.0 * std::pow (2.0, 7.0 / 12.0);
+        check ("OCTAVE universale: SOL un'ottava sopra (Hz)", r.spectralPeak (0.5, 1150.0, 1500.0), sol2, sol2 * 0.02);
+        r.run (0.4, {}, note (67, false));
+        setParam (p, "octave", 0.0f);
+        setParam (p, "mode", 0.0f);
+        setParam (p, "coulisse", 1.0f);
+
+        // MONO: nastro con canali diversi -> uscite identiche
+        const File st = outDir.getChildFile ("stereo.wav");
+        writeStereo (st, 48000.0, 1.0, [] (int ch, int i) { return ch == 0 ? 0.5f * (float) std::sin (0.0576 * i) : 0.0f; });
+        p.housekeeping(); p.loadFile (st); r.run (0.05); p.housekeeping();
+        setParam (p, "mono", 1.0f);
+        {
+            AudioBuffer<float> buf (jmax (2, p.getTotalNumInputChannels()), 512);
+            MidiBuffer on; on.addEvent (MidiMessage::noteOn (1, 60, 1.0f), 0);
+            float maxDiff = 0.0f, maxL = 0.0f;
+            for (int b = 0; b < 60; ++b)
+            {
+                buf.clear();
+                MidiBuffer m; if (b == 0) m = on;
+                p.processBlock (buf, m);
+                if (b > 20)
+                    for (int i = 0; i < 512; ++i)
+                    {
+                        maxDiff = jmax (maxDiff, std::abs (buf.getSample (0, i) - buf.getSample (1, i)));
+                        maxL = jmax (maxL, std::abs (buf.getSample (0, i)));
+                    }
+            }
+            check ("MONO: canali identici", maxDiff, 0.0, 1.0e-6);
+            check ("MONO: segnale presente", maxL > 0.1f ? 1.0 : 0.0, 1.0, 0.0);
+        }
+        setParam (p, "mono", 0.0f);
+        r.run (0.4, {}, note (60, false));
+
+        // COLLURE: calo di livello alla giunta dell'anello
+        p.housekeeping(); p.loadFile (wav); r.run (0.05); p.housekeeping();
+        setParam (p, "loopLength", 0.1f);   // anello di 0,2 s: 5 giunte al secondo
+        auto minEnvelope = [&] (bool spliceOn)
+        {
+            setParam (p, "splice", spliceOn ? 1.0f : 0.0f);
+            r.run (1.2, {}, note (60, true));
+            const int win = (int) (0.002 * sr);
+            float mn = 1.0e9f;
+            for (size_t i = r.captured.size() - (size_t) sr; i + (size_t) win < r.captured.size(); i += (size_t) win / 2)
+            {
+                double acc = 0; for (int k = 0; k < win; ++k) acc += r.captured[i + (size_t) k] * r.captured[i + (size_t) k];
+                mn = jmin (mn, (float) std::sqrt (acc / win));
+            }
+            r.run (0.4, {}, note (60, false));
+            return mn;
+        };
+        const float envOff = minEnvelope (false), envOn = minEnvelope (true);
+        std::cout << "inviluppo minimo: senza giunta " << envOff << ", con giunta " << envOn << "\n";
+        check ("COLLURE: calo udibile alla giunta (< 70 %)", envOn / envOff < 0.7f ? 1.0 : 0.0, 1.0, 0.0);
+        setParam (p, "splice", 0.0f);
+        setParam (p, "loopLength", 1.0f);
+
+        // DÉBUT/LONGUEUR mossi mentre suona: niente clic (dissolvenza)
+        {
+            IIRFilter h1, h2, h3;
+            const auto c = IIRCoefficients::makeHighPass (sr, 6000.0, 0.7);
+            h1.setCoefficients (c); h2.setCoefficients (c); h3.setCoefficients (c);
+            r.run (0.5, {}, note (60, true));
+            Random rd (3);
+            float hf = 0.0f;
+            for (int b = 0; b < 40; ++b)
+            {
+                setParam (p, "loopStart", rd.nextFloat() * 0.6f);
+                setParam (p, "loopLength", 0.2f + rd.nextFloat() * 0.4f);
+                r.run (0.05);
+                for (size_t i = 0; i < r.captured.size(); ++i)
+                {
+                    const float y = h3.processSingleSampleRaw (h2.processSingleSampleRaw (h1.processSingleSampleRaw (r.captured[i])));
+                    if (b > 0) hf = jmax (hf, std::abs (y));
+                }
+            }
+            std::cout << "picco sopra 6 kHz muovendo DEBUT/LONGUEUR: " << hf << "\n";
+            check ("DEBUT/LONGUEUR senza clic (picco < 0,02)", hf < 0.02f ? 1.0 : 0.0, 1.0, 0.0);
+            r.run (0.4, {}, note (60, false));
+            setParam (p, "loopStart", 0.0f);
+            setParam (p, "loopLength", 1.0f);
+        }
+
+        // soffio trasposto con il nastro: più acuto a velocità doppia
+        {
+            const File silent = outDir.getChildFile ("silenzio.wav");
+            writeStereo (silent, 48000.0, 1.0, [] (int, int) { return 0.0f; });
+            p.housekeeping(); p.loadFile (silent); r.run (0.05); p.housekeeping();
+            setParam (p, "hiss", 1.0f);
+            auto centroid = [&] (int noteNum)
+            {
+                r.run (0.8, {}, note (noteNum, true));
+                const int n = 8192;
+                const float* x = r.captured.data() + r.captured.size() - (size_t) n;
+                double num = 0, den = 0;
+                for (int k = 1; k < n / 2; k += 8)
+                {
+                    double re = 0, im = 0; const double w = MathConstants<double>::twoPi * k / n;
+                    for (int i = 0; i < n; ++i) { re += x[i] * std::cos (w * i); im += x[i] * std::sin (w * i); }
+                    const double pw = re * re + im * im;
+                    num += pw * k; den += pw;
+                }
+                r.run (0.4, {}, note (noteNum, false));
+                return num / den * sr / n;
+            };
+            setParam (p, "extended", 1.0f);
+            const double c1 = centroid (48), c2 = centroid (60);
+            std::cout << "baricentro del soffio: 0,5x " << c1 << " Hz, 1x " << c2 << " Hz\n";
+            check ("soffio trasposto (baricentro a 1x > 1,4 volte quello a 0,5x)", c2 / c1 > 1.4 ? 1.0 : 0.0, 1.0, 0.0);
+            setParam (p, "extended", 0.0f);
+            setParam (p, "hiss", 0.0f);
+            p.housekeeping(); p.loadFile (wav); r.run (0.05); p.housekeeping();
+        }
     }
 
     // testo dei valori a due decimali
