@@ -67,6 +67,13 @@ if(PHONOGENE_TESTS)
     target_compile_definitions(PhonogeneTest PRIVATE $<TARGET_PROPERTY:Phonogene,COMPILE_DEFINITIONS>)
     target_link_libraries(PhonogeneTest PRIVATE Phonogene juce::juce_recommended_config_flags)
 
+    juce_add_console_app(PhonogeneBench PRODUCT_NAME "PhonogeneBench")
+    target_sources(PhonogeneBench PRIVATE Tests/Bench.cpp)
+    target_compile_definitions(PhonogeneBench PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+    target_include_directories(PhonogeneBench PRIVATE $<TARGET_PROPERTY:Phonogene,INCLUDE_DIRECTORIES>)
+    target_compile_definitions(PhonogeneBench PRIVATE $<TARGET_PROPERTY:Phonogene,COMPILE_DEFINITIONS>)
+    target_link_libraries(PhonogeneBench PRIVATE Phonogene juce::juce_recommended_config_flags)
+
     juce_add_console_app(PhonogeneMockups PRODUCT_NAME "PhonogeneMockups")
     target_sources(PhonogeneMockups PRIVATE Tests/Mockups.cpp)
     target_compile_definitions(PhonogeneMockups PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
