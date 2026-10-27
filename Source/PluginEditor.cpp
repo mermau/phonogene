@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include <map>
 
 namespace
 {
@@ -517,7 +518,7 @@ void DeckView::paintStatic (Graphics& g, int mode, int activeKey, float scaleMax
     const char* typeName[3] = { "à clavier  ·  type chromatique", "à coulisse  ·  vitesse continue", "universel  ·  tête rotative" };
     g.drawText (String::fromUTF8 (typeName[jlimit (0, 2, mode)]), tag.withTrimmedTop (34.0f).withTrimmedBottom (16.0f), Justification::centred);
     g.setFont (labelFont (7.5f));
-    g.drawText ("COLLATERAL EFFECTS", tag.withTrimmedTop (50.0f), Justification::centred);
+    g.drawText (String::fromUTF8 ("COLLATERAL EFFECTS  ·  v") + JucePlugin_VersionString, tag.withTrimmedTop (50.0f), Justification::centred);
     for (auto p : { tag.getTopLeft().translated (6, 6), tag.getTopRight().translated (-6, 6),
                     tag.getBottomLeft().translated (6, -6), tag.getBottomRight().translated (-6, -6) })
         screw (g, p, 2.6f, 0.6f);
@@ -913,9 +914,11 @@ void OctaveKeyboard::paint (Graphics& g)
                 g.fillRoundedRectangle (kb.withTrimmedBottom (down ? 0.0f : 3.0f), 3.0f);
                 g.setColour (Colours::black.withAlpha (0.35f));
                 g.drawRoundedRectangle (kb, 3.0f, 0.8f);
-                g.setFont (labelFont (8.0f));
-                g.setColour (down ? Col::lamp.darker (0.3f) : Colour (0xff7a725f));
-                g.drawText (String::fromUTF8 (noteNames[k]), kb.removeFromBottom (22.0f), Justification::centred);
+                if (down)
+                {
+                    g.setColour (Col::lamp.withAlpha (0.55f));
+                    g.fillRoundedRectangle (kb.removeFromBottom (7.0f).reduced (6.0f, 1.5f), 2.0f);
+                }
             }
             else
             {
@@ -1029,6 +1032,8 @@ PhonogeneEditor::PhonogeneEditor (PhonogeneProcessor& p)
     loadButton.onClick = [this] { openFileChooser(); };
     addAndMakeVisible (exportButton);
     exportButton.onClick = [this] { exportRecording(); };
+    hoverOnly.push_back ({ &loadButton, "load" });
+    hoverOnly.push_back ({ &exportButton, "export" });
     exportButton.setTooltip (String::fromUTF8 ("Exporter la bande enregistrée en WAV ou AIFF"));
 
     // finestra ridimensionabile con proporzioni fisse; la dimensione si salva nel progetto
@@ -1051,7 +1056,7 @@ void PhonogeneEditor::setupKnob (Knob& k, const String& paramId, const String& l
     k.slider.setSliderStyle (style);
     k.slider.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
     k.slider.setRotaryParameters (MathConstants<float>::pi * 1.25f, MathConstants<float>::pi * 2.75f, true);
-    k.slider.setPopupDisplayEnabled (true, true, this);
+    k.slider.setPopupDisplayEnabled (false, false, nullptr);   // il valore è nel riquadro informativo
     addAndMakeVisible (k.slider);
     k.att = std::make_unique<SliderAtt> (proc.apvts, paramId, k.slider);
 }
@@ -1125,14 +1130,16 @@ void PhonogeneEditor::paintOverChildren (Graphics& g)
             const auto b = c->getBounds().toFloat().expanded (4.0f);
             g.setColour (Col::amber.withAlpha (pulse));
             g.drawRoundedRectangle (b, 6.0f, 2.5f);
-            auto banner = Rectangle<float> (b.getCentreX() - 110.0f, b.getY() - 26.0f, 220.0f, 20.0f)
+            auto banner = Rectangle<float> (b.getCentreX() - 150.0f, b.getY() - 26.0f, 300.0f, 20.0f)
                               .constrainedWithin (Rectangle<float> (logicalW, logicalH).reduced (4.0f));
             g.setColour (Colour (0xff1d1d1c).withAlpha (0.9f));
             g.fillRoundedRectangle (banner, 4.0f);
             g.setColour (Col::amber);
             g.setFont (labelFont (9.5f));
-            g.drawText ("MIDI LEARN  :  BOUGEZ UNE COMMANDE", banner, Justification::centred);
+            g.drawText ("MIDI LEARN  ·  MUOVI UN CONTROLLO  (CTRL+CLIC ANNULLA)", banner, Justification::centred);
         }
+
+    paintHover (g);
 
     auto labelUnder = [&] (const Knob& k, float size = 9.5f)
     {
@@ -1248,6 +1255,158 @@ void PhonogeneEditor::layoutLogical()
     tMono.setBounds          (dx + 156, 262, 56, 94);
 }
 
+//==============================================================================
+// Descrizioni in italiano dei comandi (riquadro al passaggio del mouse).
+namespace
+{
+    struct ControlInfo { const char* name; const char* text; const char* unit; };
+
+    ControlInfo infoFor (const String& id)
+    {
+        static const std::map<String, ControlInfo> table = {
+            { "mode",       { "Modalità", "Sceglie la macchina: cromatico (12 tasti = 12 capstan), a coulisse (velocità continua con la leva), universale (testina rotante: altezza e durata indipendenti).", "" } },
+            { "source",     { "Sorgente", "Nastro da file (FICHIER) o registrato dall'ingresso / sidechain (ENTRÉE).", "" } },
+            { "record",     { "Registrazione", "Registra l'ingresso sull'anello di nastro (fino a 30 s). Attiva con SOURCE su ENTRÉE.", "" } },
+            { "monitor",    { "Ascolto", "Manda in uscita anche il segnale in ingresso, per sentire cosa si registra.", "" } },
+            { "mono",       { "Mono", "Nastro a una traccia come l'originale: stesso segnale sulle due uscite.", "" } },
+            { "restart",    { "Ritorno", "I: ogni nuovo attacco riparte dall'inizio dell'anello. O: il nastro riprende da dove si era fermato.", "" } },
+            { "splice",     { "Giunta", "Fa sentire la giunta adesiva che chiude l'anello: un breve calo a ogni giro.", "" } },
+            { "extended",   { "Tastiera estesa", "O: tutte le ottave ricadono nell'unica ottava della macchina. I: ogni tasto ha la sua velocità (C3 = nominale).", "" } },
+            { "octave",     { "Ottava", "Porta la tastiera un'ottava sopra (velocità del nastro ×2), come la seconda ottava del cromatico.", "" } },
+            { "loopStart",  { "Inizio", "Punto del nastro da cui comincia l'anello (frazione della lunghezza).", "" } },
+            { "loopLength", { "Lunghezza", "Durata dell'anello, come frazione del nastro: anelli corti diventano ritmi e ronzii.", "" } },
+            { "inertia",    { "Inerzia", "Tempo con cui il nastro raggiunge la nuova velocità: attacchi secchi o glissandi. In coulisse è la massa del motore.", "ms" } },
+            { "level",      { "Livello", "Livello d'uscita.", "dB" } },
+            { "wow",        { "Fluttuazione", "Pleurage e scintillio: le piccole oscillazioni di velocità del trasporto meccanico.", "" } },
+            { "hiss",       { "Soffio", "Fruscio del nastro, che si traspone con la velocità di lettura.", "" } },
+            { "drive",      { "Saturazione", "Saturazione morbida della testina: arrotonda i picchi e aggiunge densità.", "" } },
+            { "coulisse",   { "Leva", "In coulisse: velocità del motore (0-2, mod wheel). In universale: velocità del nastro, cioè la durata, senza cambiare altezza.", "×" } },
+            { "heads",      { "Testine", "Numero di testine sul tamburo rotante (modalità universale).", "" } },
+            { "window",     { "Finestra", "Distanza tra due testine misurata sul nastro: corta = suono granuloso, lunga = più liscio con ripetizioni.", "ms" } },
+            { "hardness",   { "Durezza", "Passaggio tra una testina e l'altra: 0 dissolvenza morbida, 1 commutazione secca con i clic tipici.", "" } },
+            { "load",       { "Carica", "Carica un file audio (WAV, AIFF, FLAC...) come nastro. Si può anche trascinare il file sul plugin.", "" } },
+            { "export",     { "Esporta", "Salva la registrazione dell'ingresso come file WAV o AIFF a 24 bit.", "" } },
+        };
+        const auto it = table.find (id);
+        return it != table.end() ? it->second : ControlInfo { "", "", "" };
+    }
+}
+
+String PhonogeneEditor::paramIdFor (Component* c) const
+{
+    for (const auto& [comp, id] : ccControls) if (comp == c) return id;
+    for (const auto& [comp, id] : hoverOnly)  if (comp == c) return id;
+    return {};
+}
+
+String PhonogeneEditor::valueText (const String& id) const
+{
+    auto* prm = proc.apvts.getParameter (id);
+    if (prm == nullptr) return {};
+    if (auto* b = dynamic_cast<AudioParameterBool*> (prm))
+        return b->get() ? "I (attivo)" : "O (spento)";
+    if (auto* c = dynamic_cast<AudioParameterChoice*> (prm))
+    {
+        if (id == "mode")   { const char* n[] = { "cromatico", "a coulisse", "universale" }; return n[jlimit (0, 2, c->getIndex())]; }
+        if (id == "source") return c->getIndex() == 0 ? "file" : "ingresso";
+        return c->getCurrentChoiceName();
+    }
+    const float v = prm->convertFrom0to1 (prm->getValue());
+    String t = String (v, 2).replaceCharacter ('.', ',');
+    const String unit = String::fromUTF8 (infoFor (id).unit);
+    if (unit.isNotEmpty()) t << " " << unit;
+    return t;
+}
+
+Rectangle<int> PhonogeneEditor::toScreenArea (Rectangle<float> r) const
+{
+    return r.transformedBy (AffineTransform::scale (uiScale())).getSmallestIntegerContainer().expanded (2);
+}
+
+void PhonogeneEditor::showHoverFor (const String& paramId)
+{
+    forcedHover = paramId;
+    updateHover();
+}
+
+void PhonogeneEditor::updateHover()
+{
+    Component* now = nullptr;
+    if (forcedHover.isNotEmpty())
+        for (auto* list : { &ccControls, &hoverOnly })
+            for (const auto& [comp, id] : *list)
+                if (id == forcedHover) now = comp;
+    for (auto* list : { &ccControls, &hoverOnly })
+        for (const auto& [comp, id] : *list)
+            if (comp->isMouseOverOrDragging (true)) { now = comp; break; }
+
+    String key;
+    if (now != nullptr)
+    {
+        const auto id = paramIdFor (now);
+        const int idx = proc.ccIndexForParam (id);
+        key << id << "|" << valueText (id) << "|" << (idx >= 0 ? proc.getAssignedCC (idx) : -2);
+    }
+    if (now == hovered && key == hoverKey) return;
+
+    if (! hoverRect.isEmpty()) repaint (toScreenArea (hoverRect));
+    hovered = now;
+    hoverKey = key;
+    hoverRect = {};
+    if (hovered != nullptr)
+    {
+        // posizione: sotto il comando se c'è spazio, altrimenti sopra
+        const float w = 270.0f, h = 92.0f;
+        const auto b = hovered->getBounds().toFloat();
+        Rectangle<float> r (b.getCentreX() - w * 0.5f, b.getBottom() + 4.0f, w, h);
+        if (r.getBottom() > logicalH - 6.0f) r.setY (b.getY() - h - 4.0f);
+        hoverRect = r.constrainedWithin (Rectangle<float> (logicalW, logicalH).reduced (6.0f));
+        repaint (toScreenArea (hoverRect));
+    }
+}
+
+void PhonogeneEditor::paintHover (Graphics& g)
+{
+    if (hovered == nullptr || hoverRect.isEmpty()) return;
+    const auto id = paramIdFor (hovered);
+    const auto info = infoFor (id);
+    const int idx = proc.ccIndexForParam (id);
+
+    auto r = hoverRect;
+    g.setColour (Colours::black.withAlpha (0.25f));
+    g.fillRoundedRectangle (r.translated (2.0f, 3.0f), 5.0f);
+    g.setColour (Colour (0xff1d1d1c));
+    g.fillRoundedRectangle (r, 5.0f);
+    g.setColour (Col::amber.withAlpha (0.6f));
+    g.drawRoundedRectangle (r.reduced (0.5f), 5.0f, 1.0f);
+
+    auto in = r.reduced (10.0f, 7.0f);
+    const auto value = valueText (id);
+    auto top = in.removeFromTop (16.0f);
+    g.setFont (Font (FontOptions (12.0f, Font::bold)));
+    g.setColour (Col::amber);
+    g.drawText (String::fromUTF8 (info.name), top, Justification::centredLeft);
+    if (value.isNotEmpty())
+    {
+        g.setColour (Colours::white);
+        g.drawText (value, top, Justification::centredRight);
+    }
+
+    auto bottom = in.removeFromBottom (13.0f);
+    g.setFont (Font (FontOptions (9.5f)));
+    g.setColour (Colour (0xffb9b5a6));
+    if (idx >= 0)
+    {
+        const int cc = proc.getAssignedCC (idx);
+        g.drawText ((cc >= 0 ? "CC " + String (cc) : String ("nessun CC")) + String::fromUTF8 ("  ·  ctrl+clic: riassegna  ·  tasto destro: menu"),
+                    bottom, Justification::centredLeft);
+    }
+
+    g.setColour (Colour (0xffe9e4d4));
+    g.setFont (Font (FontOptions (10.5f)));
+    g.drawFittedText (String::fromUTF8 (info.text), in.reduced (0.0f, 2.0f).toNearestInt(), Justification::topLeft, 4, 0.95f);
+}
+
 void PhonogeneEditor::registerCC (Component& c, const String& paramId)
 {
     ccControls.push_back ({ &c, paramId });
@@ -1264,11 +1423,20 @@ Component* PhonogeneEditor::componentForCCIndex (int index) const
 
 void PhonogeneEditor::mouseDown (const MouseEvent& e)
 {
-    if (! e.mods.isPopupMenu()) return;
+    if (! e.mods.isPopupMenu()) return;   // comprende ctrl+clic e tasto destro
     for (const auto& [comp, id] : ccControls)
         if (e.eventComponent == comp || comp->isParentOf (e.eventComponent))
         {
-            showCCMenu (*comp, id);
+            const int idx = proc.ccIndexForParam (id);
+            if (e.mods.isCtrlDown() && ! e.mods.isRightButtonDown() && idx >= 0)
+            {
+                // ctrl+clic: riassegnazione immediata (muovi il controllo MIDI desiderato)
+                if (proc.getLearnIndex() == idx) proc.cancelLearn();
+                else proc.startLearn (idx);
+                repaint();
+            }
+            else
+                showCCMenu (*comp, id);
             return;
         }
 }
@@ -1281,13 +1449,31 @@ void PhonogeneEditor::showCCMenu (Component& c, const String& paramId)
 
     PopupMenu m;
     m.setLookAndFeel (&getLookAndFeel());
-    m.addSectionHeader (cc >= 0 ? "CC " + String (cc) : String ("Aucun CC"));
-    m.addItem (1, "MIDI learn");
-    m.addItem (2, "Oublier le CC", cc >= 0);
+    m.addSectionHeader (cc >= 0 ? "CC " + String (cc) : String ("Nessun CC assegnato"));
+    m.addItem (1, "MIDI learn (muovi un controllo)");
+
+    // scelta diretta del numero di CC, a gruppi di 16
+    PopupMenu choose;
+    for (int group = 0; group < 8; ++group)
+    {
+        PopupMenu sub;
+        for (int n = group * 16; n < jmin (120, group * 16 + 16); ++n)
+        {
+            const int other = proc.commandForCC (n);
+            String text = "CC " + String (n);
+            if (other >= 0 && other != idx)
+                text << "  (ora: " << infoFor (PhonogeneProcessor::ccTargets[other].paramId).name << ")";
+            sub.addItem (1000 + n, text, true, n == cc);
+        }
+        if (group * 16 < 120)
+            choose.addSubMenu ("CC " + String (group * 16) + " - " + String (jmin (119, group * 16 + 15)), sub);
+    }
+    m.addSubMenu ("Assegna CC", choose);
+    m.addItem (2, "Rimuovi il CC", cc >= 0);
     m.addSeparator();
-    m.addItem (3, String::fromUTF8 ("Rétablir les CC par défaut"));
+    m.addItem (3, "Ripristina i CC predefiniti");
     if (proc.getLearnIndex() >= 0)
-        m.addItem (4, "Annuler le MIDI learn");
+        m.addItem (4, "Annulla il MIDI learn");
 
     m.showMenuAsync (PopupMenu::Options().withTargetComponent (&c),
                      [this, idx] (int r)
@@ -1296,6 +1482,8 @@ void PhonogeneEditor::showCCMenu (Component& c, const String& paramId)
                          if (r == 2) proc.forgetCC (idx);
                          if (r == 3) proc.resetDefaultCCs();
                          if (r == 4) proc.cancelLearn();
+                         if (r >= 1000) proc.assignCC (idx, r - 1000);
+                         hoverKey = {};
                          repaint();
                      });
 }
@@ -1303,6 +1491,7 @@ void PhonogeneEditor::showCCMenu (Component& c, const String& paramId)
 void PhonogeneEditor::timerCallback()
 {
     deck.advance (1.0f / 30.0f);
+    updateHover();
     const bool coulisseMode = (int) proc.apvts.getRawParameterValue ("mode")->load() == 1;
     kCoulisse.slider.setAlpha (coulisseMode ? 1.0f : 0.5f);
     tExtended.setAlpha (coulisseMode ? 0.5f : 1.0f);    // in coulisse l'altezza del tasto non conta

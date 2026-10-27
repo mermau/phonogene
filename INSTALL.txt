@@ -3,9 +3,12 @@ PHONOGENE - prototipo 0.1 (Collateral Effects)
 Installazione
 1. Copia Phonogene.vst3 in /Library/Audio/Plug-Ins/VST3
 2. Copia Phonogene.component in /Library/Audio/Plug-Ins/Components
+   e Phonogene.app nella cartella Applicazioni (sostituisci anche questa a ogni
+   aggiornamento: la versione è scritta sulla targhetta, es. "v0.3")
 3. Il plugin non è firmato da uno sviluppatore Apple: dal Terminale
    xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/VST3/Phonogene.vst3
    xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/Components/Phonogene.component
+   xattr -dr com.apple.quarantine /Applications/Phonogene.app
 4. Riavvia Ableton Live e rianalizza i plugin.
 
 Test in Ableton Live (sidechain su strumento)
@@ -18,7 +21,8 @@ Test in Ableton Live (sidechain su strumento)
 
 Con un file: CHARGER oppure trascina un WAV/AIFF sul plugin (SOURCE torna su FICHIER).
 
-CC MIDI predefiniti (modificabili: tasto destro su un comando > MIDI learn)
+CC MIDI predefiniti. Per riassegnarli: ctrl+clic su un comando e muovi il controllo
+MIDI desiderato (ctrl+clic di nuovo per annullare), oppure tasto destro > Assegna CC.
   CC 74  DÉBUT          CC 79  SOUFFLE        CC 1   COULISSE (mod wheel)
   CC 75  LONGUEUR       CC 80  SATURATION     CC 27  MODE
   CC 76  INERTIE        CC 81  TÊTES          CC 28  SOURCE
@@ -26,5 +30,5 @@ CC MIDI predefiniti (modificabili: tasto destro su un comando > MIDI learn)
   CC 78  PLEURAGE       CC 83  DURETÉ         CC 30  ÉCOUTE
   CC 14  ÉTENDU         CC 15  OCTAVE         CC 31  RETOUR
   CC 16  MONO           CC 17  COLLURE
-Dal menu del tasto destro: "Oublier le CC" e "Rétablir les CC par défaut".
+Dal menu del tasto destro: "Rimuovi il CC" e "Ripristina i CC predefiniti".
 Le assegnazioni vengono salvate con il progetto.

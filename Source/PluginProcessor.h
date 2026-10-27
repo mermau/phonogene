@@ -61,6 +61,17 @@ public:
     void cancelLearn() { learnIndex.store (-1); }
     int  getLearnIndex() const { return learnIndex.load(); }
     void forgetCC (int index) { assignedCC[(size_t) index].store (-1); }
+    // assegna un CC a un comando, togliendolo a quello che lo usava
+    void assignCC (int index, int cc)
+    {
+        for (auto& a : assignedCC) if (a.load() == cc) a.store (-1);
+        assignedCC[(size_t) index].store (cc);
+    }
+    int  commandForCC (int cc) const
+    {
+        for (int i = 0; i < numCCTargets; ++i) if (assignedCC[(size_t) i].load() == cc) return i;
+        return -1;
+    }
     void resetDefaultCCs();
     void applyPendingCCs();   // thread dei messaggi (chiamata dal timer)
     void housekeeping();      // thread dei messaggi: CC in attesa e nastri da liberare

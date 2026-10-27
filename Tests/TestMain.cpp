@@ -585,6 +585,14 @@ int main (int argc, char** argv)
         if (auto* deck = dynamic_cast<PhonogeneEditor*> (ed.get())) { (void) deck; }
 
     auto snap = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.5f);
+    if (auto* pe = dynamic_cast<PhonogeneEditor*> (ed.get())) pe->showHoverFor ("wow");
+    {
+        auto hov = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.5f);
+        const File ph = outDir.getChildFile ("phonogene_ui_hover.png");
+        ph.deleteFile();
+        if (auto os = ph.createOutputStream()) PNGImageFormat().writeImageToStream (hov, *os);
+    }
+    if (auto* pe = dynamic_cast<PhonogeneEditor*> (ed.get())) pe->showHoverFor ({});
     const File png = outDir.getChildFile ("phonogene_ui.png");
     png.deleteFile();
     if (auto os = png.createOutputStream())

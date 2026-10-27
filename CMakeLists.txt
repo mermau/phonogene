@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PHONOGENE VERSION 0.1.0 LANGUAGES C CXX)
+project(PHONOGENE VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,6 +23,7 @@ juce_add_plugin(Phonogene
     PLUGIN_MANUFACTURER_CODE Clfx
     PLUGIN_CODE Phng
     PRODUCT_NAME "Phonogene"
+    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
     BUNDLE_ID com.collateraleffects.phonogene
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE

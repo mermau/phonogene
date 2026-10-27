@@ -23,13 +23,13 @@ public:
 class PhonoSlider : public juce::Slider
 {
 public:
-    // il tasto destro è riservato al menu MIDI (gestito dall'editor)
+    // ctrl+clic (riassegnazione del CC) e tasto destro (menu MIDI) sono gestiti dall'editor
     void mouseDown (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) juce::Slider::mouseDown (e); }
     void mouseDrag (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) juce::Slider::mouseDrag (e); }
 
     void mouseUp (const juce::MouseEvent& e) override
     {
-        if (e.mods.isPopupMenu()) return;
+        if (e.mods.isPopupMenu() || e.mods.isCtrlDown()) return;
         const bool wasClick = ! e.mouseWasDraggedSinceMouseDown();
         juce::Slider::mouseUp (e);
 
@@ -46,7 +46,7 @@ class PhonoToggle : public juce::ToggleButton
 {
 public:
     void mouseDown (const juce::MouseEvent& e) override { if (! e.mods.isPopupMenu()) juce::ToggleButton::mouseDown (e); }
-    void mouseUp (const juce::MouseEvent& e) override   { if (! e.mods.isPopupMenu()) juce::ToggleButton::mouseUp (e); }
+    void mouseUp (const juce::MouseEvent& e) override   { if (! e.mods.isPopupMenu() && ! e.mods.isCtrlDown()) juce::ToggleButton::mouseUp (e); }
 };
 
 // Deck con l'anello di nastro, la testina e i dodici capstan.
@@ -116,6 +116,7 @@ public:
     bool isInterestedInFileDrag (const juce::StringArray&) override { return true; }
     void filesDropped (const juce::StringArray& files, int, int) override;
     void mouseDown (const juce::MouseEvent&) override;
+    void showHoverFor (const juce::String& paramId);   // per i test e le istantanee
 
 private:
     using SliderAtt = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -166,4 +167,15 @@ private:
     void showCCMenu (juce::Component& c, const juce::String& paramId);
     juce::Component* componentForCCIndex (int index) const;
     int lastLearn = -1;
+
+    // riquadro informativo al passaggio del mouse (italiano, valore a 2 decimali)
+    juce::Component* hovered = nullptr;
+    juce::String hoverKey, forcedHover;
+    juce::Rectangle<float> hoverRect;           // coordinate logiche
+    std::vector<std::pair<juce::Component*, juce::String>> hoverOnly;   // pulsanti senza CC
+    void updateHover();
+    juce::String paramIdFor (juce::Component*) const;
+    juce::String valueText (const juce::String& paramId) const;
+    void paintHover (juce::Graphics&);
+    juce::Rectangle<int> toScreenArea (juce::Rectangle<float> logical) const;
 };

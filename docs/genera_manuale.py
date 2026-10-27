@@ -135,7 +135,7 @@ def cover(c, doc):
     c.setFont("Serif-Italic", 11)
     c.setFillColor(DIM)
     c.drawCentredString(W / 2, y - 30 * mm, "Emulazione del Phonogène di Pierre Schaeffer e Jacques Poullin")
-    c.drawCentredString(W / 2, y - 36 * mm, "VST3  ·  AU  ·  Standalone  —  versione 0.2")
+    c.drawCentredString(W / 2, y - 36 * mm, "VST3  ·  AU  ·  Standalone  —  versione 0.3")
     # immagine dell'interfaccia
     iw = 150 * mm
     ih = iw * 740 / 1000
@@ -239,7 +239,10 @@ B(["Copia <b>Phonogene.vst3</b> in <font face='Sans'>/Library/Audio/Plug-Ins/VST
    "Il plugin non è firmato da uno sviluppatore Apple: dal Terminale rimuovi la quarantena con<br/>"
    "<font face='Sans' size='8.5'>sudo xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/VST3/Phonogene.vst3 "
    "/Library/Audio/Plug-Ins/Components/Phonogene.component</font>",
-   "Riavvia Ableton Live e fai rianalizzare i plugin. L'applicazione <b>Phonogene.app</b> funziona anche da sola (Standalone)."])
+   "Riavvia Ableton Live e fai rianalizzare i plugin. L'applicazione <b>Phonogene.app</b> funziona anche da sola (Standalone): "
+   "copiala in /Applications e rimuovi la quarantena anche a lei.",
+   "A ogni aggiornamento sostituisci <b>tutti e tre</b> i file (VST3, Component, app). La versione installata è "
+   "scritta sulla targhetta (es. v0.3.0): se non corrisponde, stai usando una copia vecchia."])
 P("In Ableton Live", h2)
 P("Il Phonogene è uno <b>strumento</b>: va inserito su una traccia MIDI. Per suonare un file basta caricarlo; "
   "per registrare dal vivo serve il <b>sidechain</b>:")
@@ -279,7 +282,10 @@ table([
 ], [10 * mm, 38 * mm, W - 2 * M - 48 * mm])
 P("I selettori MODE, SOURCE e TÊTES cambiano posizione con un clic o con un breve trascinamento. La finestra si "
   "ridimensiona dall'angolo in basso a destra, mantenendo le proporzioni; si apre sempre a 1000 × 740 punti. "
-  "Con il tasto destro su qualsiasi comando si apre il menu MIDI (capitolo 11).", small)
+  "Passando con il mouse su un comando compare un riquadro con il nome e la funzione in italiano, il valore "
+  "attuale (due decimali) e il CC assegnato. Ctrl+clic riassegna il CC, il tasto destro apre il menu MIDI "
+  "(capitolo 11). La targhetta riporta la versione del plugin.", small)
+img("hover_crop.png", 80 * mm, "Il riquadro informativo che compare passando con il mouse su PLEURAGE.")
 
 # ---------------------------------------------------------------------------- 5
 P("5  ·  Il nastro: sorgenti, anello, registrazione", h1)
@@ -413,11 +419,13 @@ table([
     ["SOUFFLE", "79", "OCTAVE", "15", "ÉTENDU", "14"],
     ["", "", "MONO", "16", "COLLURE", "17"],
 ], [30 * mm, 20 * mm, 30 * mm, 30 * mm, 30 * mm, W - 2 * M - 140 * mm])
-P("MIDI learn", h2)
-B(["Tasto destro su un comando: il menu mostra il CC assegnato.",
-   "<b>MIDI learn</b>: il comando lampeggia in ambra finché non muovi una manopola del controller. Se quel CC era già "
-   "usato da un altro comando, viene tolto da lì.",
-   "<b>Oublier le CC</b> rimuove l'assegnazione; <b>Rétablir les CC par défaut</b> torna alla tabella sopra.",
+P("Riassegnare i CC", h2)
+B(["<b>Ctrl+clic</b> su un comando: il comando lampeggia in ambra finché non muovi la manopola o il cursore del "
+   "controller che vuoi usare. Un secondo ctrl+clic annulla. Se quel CC era già usato da un altro comando, "
+   "viene tolto da lì.",
+   "<b>Tasto destro</b> su un comando: il menu mostra il CC assegnato e permette di scegliere il numero di CC "
+   "direttamente (<b>Assegna CC</b>, con l'indicazione dei CC già usati), avviare il MIDI learn, "
+   "<b>Rimuovi il CC</b> o <b>Ripristina i CC predefiniti</b>.",
    "Le assegnazioni sono salvate nel progetto e le variazioni arrivano al DAW come automazione.",
    "Commutatori e selettori: valore ≥ 64 = I; i selettori dividono l'escursione del CC tra le posizioni."])
 
