@@ -24,7 +24,7 @@ CC MIDI predefiniti (modificabili: tasto destro su un comando > MIDI learn)
   CC 76  INERTIE        CC 81  TÊTES          CC 28  SOURCE
   CC 77  NIVEAU         CC 82  FENÊTRE        CC 29  ENREG.
   CC 78  PLEURAGE       CC 83  DURETÉ         CC 30  ÉCOUTE
-                                              CC 31  RETOUR
-                                              CC 14  ÉTENDU
+  CC 14  ÉTENDU         CC 15  OCTAVE         CC 31  RETOUR
+  CC 16  MONO           CC 17  COLLURE
 Dal menu del tasto destro: "Oublier le CC" e "Rétablir les CC par défaut".
 Le assegnazioni vengono salvate con il progetto.

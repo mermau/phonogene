@@ -135,7 +135,7 @@ def cover(c, doc):
     c.setFont("Serif-Italic", 11)
     c.setFillColor(DIM)
     c.drawCentredString(W / 2, y - 30 * mm, "Emulazione del Phonogène di Pierre Schaeffer e Jacques Poullin")
-    c.drawCentredString(W / 2, y - 36 * mm, "VST3  ·  AU  ·  Standalone  —  versione 0.1")
+    c.drawCentredString(W / 2, y - 36 * mm, "VST3  ·  AU  ·  Standalone  —  versione 0.2")
     # immagine dell'interfaccia
     iw = 150 * mm
     ih = iw * 740 / 1000
@@ -268,12 +268,14 @@ table([
     ["7", "SOURCE", "FICHIER (file caricato) o ENTRÉE (nastro registrato dall'ingresso)."],
     ["8", "ENREG.", "Registra l'ingresso sull'anello; la spia rossa è accesa durante la registrazione."],
     ["9", "ÉCOUTE", "Monitor: manda in uscita anche il segnale in ingresso."],
-    ["10", "Finestra del nastro", "Forma d'onda, regione dell'anello (in ambra) e punto di lettura (linea rossa)."],
-    ["11", "CHARGER / EXPORTER", "Carica un file come nastro; esporta la registrazione in WAV o AIFF."],
-    ["12", "Tastiera", "Un'ottava, DO–SI; suonabile anche con il mouse."],
-    ["13", "COULISSE", "La leva della velocità continua (coulisse) o della durata (universale)."],
-    ["14", "Manopole", "DÉBUT, LONGUEUR, INERTIE, NIVEAU, PLEURAGE, SOUFFLE, SATURATION."],
-    ["15", "RETOUR / ÉTENDU", "Ripartenza dall'inizio dell'anello; tastiera estesa oltre l'ottava."],
+    ["10", "MONO", "Nastro a una traccia, come l'originale: lo stesso segnale su entrambe le uscite."],
+    ["11", "Finestra del nastro", "Forma d'onda, regione dell'anello (in ambra) e punto di lettura (linea rossa)."],
+    ["12", "CHARGER / EXPORTER", "Carica un file come nastro; esporta la registrazione in WAV o AIFF."],
+    ["13", "Tastiera", "Un'ottava, DO–SI; suonabile anche con il mouse."],
+    ["14", "OCTAVE / ÉTENDU", "Seconda ottava della tastiera (velocità ×2); tastiera estesa a tutte le ottave del controller."],
+    ["15", "COULISSE", "La leva della velocità continua (coulisse) o della durata (universale)."],
+    ["16", "Manopole", "DÉBUT, LONGUEUR, INERTIE, NIVEAU, PLEURAGE, SOUFFLE, SATURATION."],
+    ["17", "RETOUR / COLLURE", "Ripartenza dall'inizio dell'anello; giunta adesiva dell'anello udibile."],
 ], [10 * mm, 38 * mm, W - 2 * M - 48 * mm])
 P("I selettori MODE, SOURCE e TÊTES cambiano posizione con un clic o con un breve trascinamento. La finestra si "
   "ridimensiona dall'angolo in basso a destra, mantenendo le proporzioni; si apre sempre a 1000 × 740 punti. "
@@ -294,11 +296,22 @@ P("Il nastro è registrato dall'ingresso: il sidechain in Live, la scheda audio 
   "nastro può già essere suonato. <b>ÉCOUTE</b> manda in uscita anche l'ingresso, per sentire cosa si sta "
   "registrando. La registrazione è <b>salvata nel progetto</b> (compressa senza perdite) e sopravvive ai cambi di "
   "frequenza di campionamento; <b>EXPORTER</b> la salva come file WAV o AIFF a 24 bit.")
+P("MONO", h3)
+P("Il Phonogène leggeva un nastro a una sola traccia con un'unica testina: il suono era monofonico. Con "
+  "<b>MONO</b> in posizione I i due canali del nastro vengono sommati e le due uscite ricevono lo stesso segnale, "
+  "soffio compreso. In posizione O il plugin conserva lo stereo del materiale caricato.")
 P("DÉBUT e LONGUEUR", h3)
 P("Scelgono quale parte del nastro forma l'anello: <b>DÉBUT</b> è l'inizio (0–1 della lunghezza del nastro), "
   "<b>LONGUEUR</b> la durata (dallo 0,5 % al 100 %). La regione appare in ambra nella finestra del nastro. Anelli "
   "corti producono ripetizioni ritmiche e, alle velocità alte, ronzii e timbri nuovi; anelli lunghi lasciano "
   "riconoscere il materiale.")
+P("I due comandi si possono girare mentre il nastro suona: il passaggio alla nuova regione avviene con una "
+  "dissolvenza di 10 ms, senza clic.", small)
+P("COLLURE", h3)
+P("Sulla macchina l'anello era chiuso con una giunta di nastro adesivo. Con <b>COLLURE</b> in posizione I la "
+  "giunta passa sulla testina a ogni giro: un breve calo di livello in corrispondenza del punto di chiusura "
+  "dell'anello, che dura circa 6 ms alla velocità nominale e si allunga quando il nastro rallenta (è un tratto "
+  "fisso di nastro). È opzionale: il segno ritmico tipico dei loop di musique concrète, da attivare quando serve.")
 box("Perché un anello",
     "Il solco chiuso del disco e poi l'anello di nastro sono gli strumenti con cui Schaeffer isolava un frammento "
     "dal suo contesto. Ripetuto, il frammento smette di raccontare da dove viene e diventa oggetto sonoro.")
@@ -314,6 +327,8 @@ B(["<b>Monofonico, ultima nota</b>: un solo nastro, una sola testina. Premendo u
    "primo, il nastro scivola alla nuova velocità (legato).",
    "<b>RETOUR</b> (I) fa ripartire il nastro dall'inizio dell'anello a ogni nuovo attacco, come un campione. "
    "In posizione O il nastro riprende da dove si era fermato, come una bobina vera.",
+   "<b>OCTAVE</b> porta la tastiera all'ottava superiore (velocità ×2): secondo il GRM il Phonogène chromatique "
+   "trasponeva «sur une à deux octaves». Con OCTAVE il tachimetro passa alla scala 0–4.",
    "<b>ÉTENDU</b> estende la tastiera: in O tutte le ottave del controller ricadono nell'unica ottava della "
    "macchina, in I ogni tasto ha la sua velocità (C3 = nominale, C4 = doppia, C2 = metà). Oltre 4× il filtro "
    "anti-aliasing non scende più.",
@@ -341,7 +356,7 @@ box("Un gesto da provare",
 # ---------------------------------------------------------------------------- 8
 P("8  ·  Modo UNIVERSEL", h1)
 P("Il tamburo con le testine rotanti separa le due grandezze che il nastro lega insieme:")
-B(["la <b>tastiera</b> (con ÉTENDU e pitch bend) decide l'<b>altezza</b>;",
+B(["la <b>tastiera</b> (con OCTAVE, ÉTENDU e pitch bend) decide l'<b>altezza</b>;",
    "la leva <b>COULISSE</b> decide la <b>velocità del nastro</b>, cioè la durata: a 2 il frammento scorre il doppio "
    "più in fretta senza cambiare altezza; vicino a 0 il nastro quasi si ferma e il suono resta sospeso;",
    "<b>INERTIE</b> fa scivolare sia l'altezza tra una nota e l'altra sia la velocità del nastro."])
@@ -350,7 +365,7 @@ table([
     ["Comando", "Che cosa fa", "Come si sente"],
     ["TÊTES (2 · 3 · 4)", "Numero di testine sul tamburo; il nastro ne avvolge una alla volta.",
      "Cambia la frequenza dei raccordi; il cambio avviene con una breve dissolvenza."],
-    ["FENÊTRE (10–250 ms)", "Distanza tra due testine misurata sul nastro: a ogni cambio di testina la lettura salta indietro di questo tratto.",
+    ["FENÊTRE (10–250 ms)", "Distanza tra due testine misurata sul nastro: a ogni cambio di testina la lettura salta indietro di questo tratto. Predefinita 40 ms, la durata dei segmenti del regolatore di Springer (4 testine a 90°).",
      "Valori corti: suono granuloso, ronzante. Valori lunghi: più liscio, con ripetizioni udibili."],
     ["DURETÉ (0–1)", "Durata del passaggio tra una testina e la successiva.",
      "0: due testine in dissolvenza, morbido. 1: commutazione secca, con i clic di raccordo tipici della macchina."],
@@ -365,8 +380,8 @@ P("Su un suono puro il salto tra le testine sposta un poco la fase: si sente com
 P("9  ·  Il carattere del nastro", h1)
 table([
     ["Manopola", "Funzione"],
-    ["PLEURAGE", "Pleurage (wow, ~0,5 Hz) e scintillio (flutter, ~7 Hz) applicati alla velocità reale del nastro, più una lenta deriva casuale. A 0 il trasporto è perfetto."],
-    ["SOUFFLE", "Soffio del nastro, presente solo quando il nastro scorre; in coulisse aumenta anche il rombo vicino all'arresto."],
+    ["PLEURAGE", "Pleurage (wow, ~0,5 Hz) e scintillio (flutter, ~7 Hz) applicati alla velocità reale del nastro, più una lenta deriva casuale. Nascono dalla rotazione delle parti meccaniche: in coulisse e in universale la loro frequenza segue la velocità del motore e rallenta con lui. A 0 il trasporto è perfetto."],
+    ["SOUFFLE", "Soffio del nastro, presente solo quando il nastro scorre. Il soffio è inciso sul nastro, quindi si traspone con la lettura: più grave quando il nastro rallenta, più acuto quando accelera. In coulisse aumenta anche il rombo vicino all'arresto."],
     ["SATURATION", "Saturazione morbida della testina, che arrotonda i picchi e aggiunge densità."],
     ["NIVEAU", "Livello d'uscita, da −36 a +12 dB."],
 ], [32 * mm, W - 2 * M - 32 * mm])
@@ -379,7 +394,7 @@ P("10  ·  Indicatori", h1)
 B(["<b>Pozzetto</b>: il nastro scorre alla velocità reale; i capstan girano sempre (in coulisse alla velocità del "
    "motore); il rullo innestato è cerchiato d'ambra; in universale il tamburo gira alla velocità relativa testina–nastro.",
    "<b>Spie CABESTANS</b>: il capstan innestato in cromatico, l'altezza in universale; spente in coulisse.",
-   "<b>Tachimetro</b>: velocità del nastro da 0 a 2; sotto, in coulisse la velocità del motore, in universale l'altezza.",
+   "<b>Tachimetro</b>: velocità del nastro da 0 a 2 (da 0 a 4 con OCTAVE); sotto, in coulisse la velocità del motore, in universale l'altezza.",
    "<b>Finestra del nastro</b>: forma d'onda, regione dell'anello e punto di lettura."])
 
 # ---------------------------------------------------------------------------- 11
@@ -395,7 +410,8 @@ table([
     ["INERTIE", "76", "FENÊTRE", "82", "ENREG.", "29"],
     ["NIVEAU", "77", "DURETÉ", "83", "ÉCOUTE", "30"],
     ["PLEURAGE", "78", "COULISSE", "1 (mod wheel)", "RETOUR", "31"],
-    ["SOUFFLE", "79", "", "", "ÉTENDU", "14"],
+    ["SOUFFLE", "79", "OCTAVE", "15", "ÉTENDU", "14"],
+    ["", "", "MONO", "16", "COLLURE", "17"],
 ], [30 * mm, 20 * mm, 30 * mm, 30 * mm, 30 * mm, W - 2 * M - 140 * mm])
 P("MIDI learn", h2)
 B(["Tasto destro su un comando: il menu mostra il CC assegnato.",
@@ -441,6 +457,9 @@ table([
     ["ÉCOUTE", "O · I", "O", "tutte"],
     ["RETOUR", "O · I", "I", "tutte"],
     ["ÉTENDU", "O · I", "O", "cromatica, universale"],
+    ["OCTAVE", "O · I", "O", "cromatica, universale"],
+    ["MONO", "O · I", "O", "tutte"],
+    ["COLLURE", "O · I", "O", "tutte"],
     ["DÉBUT", "0,00 – 1,00", "0,00", "tutte"],
     ["LONGUEUR", "0,005 – 1,00", "1,00", "tutte"],
     ["INERTIE", "2 – 2000 ms", "35 ms", "tutte"],
@@ -448,7 +467,7 @@ table([
     ["PLEURAGE / SOUFFLE / SATURATION", "0,00 – 1,00", "0,25 / 0,20 / 0,20", "tutte"],
     ["COULISSE", "0,02 – 2,00", "1,00", "coulisse (velocità), universale (durata)"],
     ["TÊTES", "2 · 3 · 4", "4", "universale"],
-    ["FENÊTRE", "10 – 250 ms", "60 ms", "universale"],
+    ["FENÊTRE", "10 – 250 ms", "40 ms", "universale"],
     ["DURETÉ", "0,00 – 1,00", "0,50", "universale"],
     ["Pitch bend", "± 12 semitoni", "—", "coulisse, universale"],
 ], [52 * mm, 50 * mm, 32 * mm, W - 2 * M - 134 * mm])
