@@ -24,7 +24,8 @@
   --bakelite: #1E201D;   /* inchiostro */
   --acier: #6A6F69;      /* testo secondario, filetti */
   --filet: #B9BBB4;
-  --oxyde: #5C3520;      /* ossido del nastro */
+  --oxyde: #3E4A43;      /* accento: grigio-verde scuro */
+  --tint: #F1F2EE;       /* fondo chiaro dei riquadri */
   --lampe: #E0A23A;      /* spia ambra */
   --part-ink: #F3EEE8;
   --side: 46mm;
@@ -33,9 +34,9 @@
   --serif: "Spectral", Georgia, serif;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --papier: #1A1C1A; --email: #2A2D2A; --bakelite: #E4E5E0; --acier: #A3A8A1; --filet: #474B46; --oxyde: #C98A62; --part-ink: #1A1C1A; }
+  :root:not([data-theme="light"]) { --papier: #1A1C1A; --email: #2A2D2A; --bakelite: #E4E5E0; --acier: #A3A8A1; --filet: #474B46; --oxyde: #9FB2A6; --tint: #242724; --part-ink: #1A1C1A; }
 }
-:root[data-theme="dark"] { --papier: #1A1C1A; --email: #2A2D2A; --bakelite: #E4E5E0; --acier: #A3A8A1; --filet: #474B46; --oxyde: #C98A62; --part-ink: #1A1C1A; }
+:root[data-theme="dark"] { --papier: #1A1C1A; --email: #2A2D2A; --bakelite: #E4E5E0; --acier: #A3A8A1; --filet: #474B46; --oxyde: #9FB2A6; --tint: #242724; --part-ink: #1A1C1A; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -64,17 +65,15 @@ a:focus-visible { outline: 2px solid var(--lampe); outline-offset: 2px; }
 @media screen { :root { --side: 210px; --gap: 36px; } }
 @media screen and (max-width: 860px) {
   .main { margin-right: 0; }
-  .side { float: none; width: auto; margin: 1.2em 0; background: var(--email); border-top: 0; border-left: 3px solid var(--oxyde); padding: 10px 12px; }
+  .side { float: none; width: auto; margin: 1.2em 0; background: var(--tint); border-top: 0; border-left: 3px solid var(--oxyde); padding: 10px 12px; }
   .full { margin-right: 0; }
 }
 
 /* ---------------------------------------------------------------- titoli */
-.part { margin: 64px 0 40px; background: var(--oxyde); color: var(--part-ink); padding: 14px 18px 16px;
-  display: flex; align-items: baseline; gap: 18px; break-before: page; }
-.part .n { font-family: var(--sans); font-stretch: 88%; font-weight: 500; font-size: 15px; opacity: .8; }
-.part h2 { margin: 0; font-family: var(--sans); font-stretch: 125%; font-weight: 800; font-size: 30px; letter-spacing: .01em; line-height: 1.1; }
-/* il nastro: i fori del cuscinetto sono le giunte, la fascia è l'ossido */
-.part { background-image: repeating-linear-gradient(90deg, transparent 0 46px, rgba(0,0,0,.12) 46px 47px); }
+.part { margin: 72px 0 40px; border-top: 4px solid var(--bakelite); border-bottom: 1px solid var(--bakelite); padding: 14px 0 16px;
+  display: flex; align-items: baseline; gap: 20px; break-before: page; }
+.part .n { font-family: var(--sans); font-stretch: 100%; font-weight: 500; font-size: 15px; color: var(--acier); }
+.part h2 { margin: 0; font-family: var(--sans); font-stretch: 125%; font-weight: 800; font-size: 34px; letter-spacing: .01em; line-height: 1.1; }
 
 h3.ch { font-family: var(--sans); font-stretch: 112%; font-weight: 750; font-size: 28px; line-height: 1.15;
   margin: 56px 0 18px; padding-top: 14px; border-top: 1px solid var(--bakelite); display: flex; gap: 14px; align-items: baseline;
@@ -111,11 +110,11 @@ ol.flow li::before { content: counter(f); display: block; font-family: var(--san
 ol.flow b { display: block; font-family: var(--sans); font-stretch: 100%; font-weight: 700; font-size: 15px; margin-bottom: 3px; }
 @media screen and (max-width: 680px) { ol.flow { grid-template-columns: 1fr; } }
 
-.try { background: var(--email); padding: 14px 18px 12px; margin: 18px 0 22px; border-radius: 2px; break-inside: avoid; }
+.try { background: var(--tint); border-left: 3px solid var(--oxyde); padding: 12px 16px 10px; margin: 18px 0 22px; border-radius: 2px; break-inside: avoid; }
 .try .t { font-family: var(--sans); font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
 .try p:last-child { margin-bottom: 0; }
 
-code, .cmd { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: .78em; background: var(--email); padding: 1px 4px; border-radius: 2px; word-break: break-all; }
+code, .cmd { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: .78em; background: var(--tint); padding: 1px 4px; border-radius: 2px; word-break: break-all; }
 pre.cmd { display: block; padding: 10px 12px; white-space: pre-wrap; margin: 6px 0 12px; line-height: 1.45; }
 
 .recipes h5 { margin-top: 18px; }
@@ -129,17 +128,17 @@ nav.toc a { text-decoration: none; }
 nav.toc a:hover { text-decoration: underline; }
 
 /* ---------------------------------------------------------------- copertina */
-.cover { background: var(--email); color: #1E201D; padding: 56px max(16px, calc((100% - 1040px) / 2 + 16px)) 40px; margin: 0; position: relative; }
+.cover { background: var(--papier); color: var(--bakelite); border-bottom: 1px solid var(--filet); padding: 56px max(16px, calc((100% - 1040px) / 2 + 16px)) 40px; margin: 0; position: relative; }
 @media screen and (max-width: 600px) { .cover { padding-top: 32px; } .part { flex-wrap: wrap; gap: 4px 14px; } .part h2 { font-size: 24px; } }
 @media screen { .cover { border-radius: 0 0 4px 4px; } }
-.cover .brand { font-family: var(--sans); font-stretch: 100%; font-weight: 600; font-size: 13px; letter-spacing: .04em; color: #4b4f4a; }
+.cover .brand { font-family: var(--sans); font-stretch: 100%; font-weight: 600; font-size: 13px; letter-spacing: .04em; color: var(--acier); }
 .cover h1 { font-family: var(--sans); font-stretch: 125%; font-weight: 850; font-size: clamp(28px, calc((100vw - 48px) / 9), 104px); line-height: .95;
   letter-spacing: .02em; margin: 34px 0 6px; }
-.cover .sub { font-family: var(--sans); font-stretch: 100%; font-size: 15px; color: #4b4f4a; margin: 0 0 40px; }
+.cover .sub { font-family: var(--sans); font-stretch: 100%; font-size: 15px; color: var(--acier); margin: 0 0 40px; }
 .cover svg { width: 100%; height: auto; display: block; }
 .cover .title { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 38px; line-height: 1.15; margin: 44px 0 6px; }
-.cover .desc { font-size: 17px; max-width: 34em; margin: 0; color: #2c2f2b; }
-.cover .foot { display: flex; justify-content: space-between; gap: 16px; margin-top: 54px; font-family: var(--sans); font-size: 12.5px; color: #4b4f4a; border-top: 1px solid #a9aca5; padding-top: 10px; }
+.cover .desc { font-size: 17px; max-width: 34em; margin: 0; }
+.cover .foot { display: flex; justify-content: space-between; gap: 16px; margin-top: 54px; font-family: var(--sans); font-size: 12.5px; color: var(--acier); border-top: 1px solid var(--filet); padding-top: 10px; }
 
 .sources { font-size: .85em; }
 .sources li { margin-bottom: .3em; }
@@ -155,7 +154,7 @@ nav.toc a:hover { text-decoration: underline; }
   body { font-size: 9.6pt; line-height: 1.45; background: #fff; }
   .sheet { max-width: none; padding: 0; }
   .side { font-size: 7.6pt; line-height: 1.42; }
-  .cover { page: cover; height: 296.5mm; overflow: hidden; margin: 0; padding: 20mm 18mm 0; display: block; border-radius: 0; break-after: page; }
+  .cover { page: cover; border-bottom: 0; height: 296.5mm; overflow: hidden; margin: 0; padding: 20mm 18mm 0; display: block; border-radius: 0; break-after: page; }
   .cover h1 { font-size: 53pt; margin-top: 24mm; }
   .cover .sub { font-size: 10.5pt; margin-bottom: 26mm; }
   .cover .title { font-size: 26pt; margin-top: 26mm; }
@@ -164,9 +163,9 @@ nav.toc a:hover { text-decoration: underline; }
   .cover .brand { font-size: 8.5pt; }
   nav.toc { break-after: page; }
   nav.toc .p { font-size: 9pt; }
-  .part { margin: 0 0 9mm; padding: 4mm 5mm 4.5mm; }
+  .part { margin: 0 0 9mm; padding: 3.5mm 0 4mm; border-top-width: 1.2mm; }
   .part .n { font-size: 9pt; }
-  .part h2 { font-size: 20pt; }
+  .part h2 { font-size: 24pt; }
   h3.ch { font-size: 17pt; margin: 11mm 0 4mm; padding-top: 3mm; }
   h3.ch.np { break-before: page; margin-top: 0; }
   h4 { font-size: 11pt; margin: 6mm 0 1.5mm; }
