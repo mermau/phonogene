@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phonogène – Manuale d'uso</title>
+<style>
+@font-face { font-family: "Archivo"; src: url(fonts/archivo-latin-standard-normal.woff2) format("woff2-variations");
+  font-weight: 100 900; font-stretch: 62% 125%;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Archivo"; src: url(fonts/archivo-latin-ext-standard-normal.woff2) format("woff2-variations");
+  font-weight: 100 900; font-stretch: 62% 125%;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Spectral"; src: url(fonts/spectral-latin-400-normal.woff2) format("woff2"); font-weight: 400; }
+@font-face { font-family: "Spectral"; src: url(fonts/spectral-latin-400-italic.woff2) format("woff2"); font-weight: 400; font-style: italic; }
+@font-face { font-family: "Spectral"; src: url(fonts/spectral-latin-500-normal.woff2) format("woff2"); font-weight: 500; }
+@font-face { font-family: "Spectral"; src: url(fonts/spectral-latin-500-italic.woff2) format("woff2"); font-weight: 500; font-style: italic; }
+@font-face { font-family: "Spectral"; src: url(fonts/spectral-latin-600-normal.woff2) format("woff2"); font-weight: 600; }
+@font-face { font-family: "Spectral"; src: url(fonts/spectral-latin-600-italic.woff2) format("woff2"); font-weight: 600; font-style: italic; }
+
+:root {
+  --papier: #F7F7F4;     /* carta */
+  --email: #DCDDD7;      /* smalto del pannello */
+  --bakelite: #1E201D;   /* inchiostro */
+  --acier: #6A6F69;      /* testo secondario, filetti */
+  --filet: #B9BBB4;
+  --oxyde: #5C3520;      /* ossido del nastro */
+  --lampe: #E0A23A;      /* spia ambra */
+  --part-ink: #F3EEE8;
+  --side: 46mm;
+  --gap: 8mm;
+  --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --serif: "Spectral", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --papier: #1A1C1A; --email: #2A2D2A; --bakelite: #E4E5E0; --acier: #A3A8A1; --filet: #474B46; --oxyde: #C98A62; --part-ink: #1A1C1A; }
+}
+:root[data-theme="dark"] { --papier: #1A1C1A; --email: #2A2D2A; --bakelite: #E4E5E0; --acier: #A3A8A1; --filet: #474B46; --oxyde: #C98A62; --part-ink: #1A1C1A; }
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--papier); color: var(--bakelite); font-family: var(--serif);
+  font-size: 17px; line-height: 1.58; font-variant-numeric: oldstyle-nums proportional-nums;
+  hyphens: auto; -webkit-hyphens: auto; }
+img { max-width: 100%; display: block; }
+b, strong { font-weight: 600; }
+a { color: inherit; text-decoration-color: var(--oxyde); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--lampe); outline-offset: 2px; }
+
+/* nomi dei comandi, come incisi sul pannello */
+.k { font-family: var(--sans); font-stretch: 88%; font-weight: 640; font-size: .8em; letter-spacing: .035em;
+  white-space: nowrap; font-variant-numeric: lining-nums; }
+.num { font-family: var(--sans); font-variant-numeric: lining-nums tabular-nums; font-stretch: 92%; font-size: .9em; }
+
+/* ---------------------------------------------------------------- struttura schermo */
+.sheet { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+.main { margin-right: calc(var(--side) + var(--gap)); }
+.side { float: right; clear: right; width: var(--side); margin-right: calc(-1 * (var(--side) + var(--gap)));
+  margin-top: .3em; margin-bottom: 1em; font-family: var(--sans); font-stretch: 94%; font-size: 12.5px; line-height: 1.45;
+  color: var(--bakelite); border-top: 2px solid var(--oxyde); padding-top: 6px; font-variant-numeric: lining-nums; }
+.side p { margin: 0 0 .5em; }
+.side .t { font-weight: 700; display: block; margin-bottom: 2px; }
+.full { margin-right: calc(-1 * (var(--side) + var(--gap))); }
+@media screen { :root { --side: 210px; --gap: 36px; } }
+@media screen and (max-width: 860px) {
+  .main { margin-right: 0; }
+  .side { float: none; width: auto; margin: 1.2em 0; background: var(--email); border-top: 0; border-left: 3px solid var(--oxyde); padding: 10px 12px; }
+  .full { margin-right: 0; }
+}
+
+/* ---------------------------------------------------------------- titoli */
+.part { margin: 64px 0 40px; background: var(--oxyde); color: var(--part-ink); padding: 14px 18px 16px;
+  display: flex; align-items: baseline; gap: 18px; break-before: page; }
+.part .n { font-family: var(--sans); font-stretch: 88%; font-weight: 500; font-size: 15px; opacity: .8; }
+.part h2 { margin: 0; font-family: var(--sans); font-stretch: 125%; font-weight: 800; font-size: 30px; letter-spacing: .01em; line-height: 1.1; }
+/* il nastro: i fori del cuscinetto sono le giunte, la fascia è l'ossido */
+.part { background-image: repeating-linear-gradient(90deg, transparent 0 46px, rgba(0,0,0,.12) 46px 47px); }
+
+h3.ch { font-family: var(--sans); font-stretch: 112%; font-weight: 750; font-size: 28px; line-height: 1.15;
+  margin: 56px 0 18px; padding-top: 14px; border-top: 1px solid var(--bakelite); display: flex; gap: 14px; align-items: baseline;
+  break-after: avoid; }
+h3.ch .n { font-weight: 400; color: var(--acier); font-stretch: 100%; font-variant-numeric: lining-nums; min-width: 1.2em; }
+h4 { font-family: var(--sans); font-stretch: 100%; font-weight: 680; font-size: 17px; margin: 28px 0 6px; break-after: avoid; line-height: 1.3; }
+h5 { font-family: var(--sans); font-stretch: 88%; font-weight: 640; font-size: 13px; letter-spacing: .035em; margin: 20px 0 2px; break-after: avoid; }
+p { margin: 0 0 .75em; }
+.lead { font-size: 1.12em; line-height: 1.5; }
+ul.l { margin: 0 0 1em; padding-left: 1.1em; }
+ul.l li { margin-bottom: .35em; }
+ul.l li::marker { color: var(--oxyde); }
+
+/* ---------------------------------------------------------------- figure e tabelle */
+figure { margin: 18px 0 22px; break-inside: avoid; }
+figure img { border-radius: 3px; }
+figcaption { font-family: var(--sans); font-stretch: 94%; font-size: 12.5px; color: var(--acier); margin-top: 7px; line-height: 1.4; font-variant-numeric: lining-nums; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0 22px; font-size: .9em; line-height: 1.42; break-inside: auto; }
+th { font-family: var(--sans); font-stretch: 94%; font-weight: 650; font-size: 12.5px; text-align: left; vertical-align: bottom;
+  padding: 6px 10px 6px 0; border-bottom: 1.5px solid var(--bakelite); }
+td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--filet); vertical-align: top; }
+tr { break-inside: avoid; }
+td:first-child { white-space: nowrap; }
+.tbl-wrap { overflow-x: auto; }
+
+/* sequenze: cronologia e procedimento */
+ol.time { list-style: none; padding: 0; margin: 0; }
+ol.time li { display: grid; grid-template-columns: 3.1em 1fr; gap: 6px; margin-bottom: 7px; }
+ol.time .y { font-weight: 750; font-variant-numeric: lining-nums tabular-nums; color: var(--oxyde); }
+
+ol.flow { list-style: none; counter-reset: f; padding: 0; margin: 14px 0 26px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+ol.flow li { counter-increment: f; padding: 12px 14px 14px 0; border-top: 1.5px solid var(--bakelite); margin-right: 14px; font-size: .9em; line-height: 1.45; break-inside: avoid; }
+ol.flow li::before { content: counter(f); display: block; font-family: var(--sans); font-weight: 400; font-stretch: 100%; font-size: 28px; line-height: 1; color: var(--oxyde); margin-bottom: 6px; font-variant-numeric: lining-nums; }
+ol.flow b { display: block; font-family: var(--sans); font-stretch: 100%; font-weight: 700; font-size: 15px; margin-bottom: 3px; }
+@media screen and (max-width: 680px) { ol.flow { grid-template-columns: 1fr; } }
+
+.try { background: var(--email); padding: 14px 18px 12px; margin: 18px 0 22px; border-radius: 2px; break-inside: avoid; }
+.try .t { font-family: var(--sans); font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+.try p:last-child { margin-bottom: 0; }
+
+code, .cmd { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: .78em; background: var(--email); padding: 1px 4px; border-radius: 2px; word-break: break-all; }
+pre.cmd { display: block; padding: 10px 12px; white-space: pre-wrap; margin: 6px 0 12px; line-height: 1.45; }
+
+.recipes h5 { margin-top: 18px; }
+
+/* indice */
+nav.toc ol { list-style: none; padding: 0; margin: 0; }
+nav.toc li { display: grid; grid-template-columns: 2.2em 1fr; padding: 5px 0; border-bottom: 1px solid var(--filet); }
+nav.toc .p { font-family: var(--sans); font-stretch: 125%; font-weight: 800; font-size: 13px; letter-spacing: .02em; margin: 26px 0 6px; color: var(--oxyde); }
+nav.toc .n { font-family: var(--sans); color: var(--acier); font-variant-numeric: lining-nums; }
+nav.toc a { text-decoration: none; }
+nav.toc a:hover { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- copertina */
+.cover { background: var(--email); color: #1E201D; padding: 56px max(16px, calc((100% - 1040px) / 2 + 16px)) 40px; margin: 0; position: relative; }
+@media screen and (max-width: 600px) { .cover { padding-top: 32px; } .part { flex-wrap: wrap; gap: 4px 14px; } .part h2 { font-size: 24px; } }
+@media screen { .cover { border-radius: 0 0 4px 4px; } }
+.cover .brand { font-family: var(--sans); font-stretch: 100%; font-weight: 600; font-size: 13px; letter-spacing: .04em; color: #4b4f4a; }
+.cover h1 { font-family: var(--sans); font-stretch: 125%; font-weight: 850; font-size: clamp(28px, calc((100vw - 48px) / 9), 104px); line-height: .95;
+  letter-spacing: .02em; margin: 34px 0 6px; }
+.cover .sub { font-family: var(--sans); font-stretch: 100%; font-size: 15px; color: #4b4f4a; margin: 0 0 40px; }
+.cover svg { width: 100%; height: auto; display: block; }
+.cover .title { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 38px; line-height: 1.15; margin: 44px 0 6px; }
+.cover .desc { font-size: 17px; max-width: 34em; margin: 0; color: #2c2f2b; }
+.cover .foot { display: flex; justify-content: space-between; gap: 16px; margin-top: 54px; font-family: var(--sans); font-size: 12.5px; color: #4b4f4a; border-top: 1px solid #a9aca5; padding-top: 10px; }
+
+.sources { font-size: .85em; }
+.sources li { margin-bottom: .3em; }
+.endnote { font-family: var(--sans); font-size: 12.5px; color: var(--acier); margin: 60px 0 40px; }
+
+/* ---------------------------------------------------------------- stampa A4 */
+@page { size: A4; margin: 18mm 18mm 20mm 18mm;
+  @bottom-left { content: "Phonogène · Manuale d'uso"; font-family: "Archivo"; font-size: 7.5pt; color: #6A6F69; }
+  @bottom-right { content: counter(page); font-family: "Archivo"; font-size: 7.5pt; color: #6A6F69; } }
+@page cover { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+@media print {
+  :root { --side: 44mm; --gap: 7mm; --papier: #fff; }
+  body { font-size: 9.6pt; line-height: 1.45; background: #fff; }
+  .sheet { max-width: none; padding: 0; }
+  .side { font-size: 7.6pt; line-height: 1.42; }
+  .cover { page: cover; height: 296.5mm; overflow: hidden; margin: 0; padding: 20mm 18mm 0; display: block; border-radius: 0; break-after: page; }
+  .cover h1 { font-size: 53pt; margin-top: 24mm; }
+  .cover .sub { font-size: 10.5pt; margin-bottom: 26mm; }
+  .cover .title { font-size: 26pt; margin-top: 26mm; }
+  .cover .desc { font-size: 11pt; }
+  .cover .foot { position: absolute; left: 18mm; right: 18mm; bottom: 14mm; margin: 0; font-size: 8pt; }
+  .cover .brand { font-size: 8.5pt; }
+  nav.toc { break-after: page; }
+  nav.toc .p { font-size: 9pt; }
+  .part { margin: 0 0 9mm; padding: 4mm 5mm 4.5mm; }
+  .part .n { font-size: 9pt; }
+  .part h2 { font-size: 20pt; }
+  h3.ch { font-size: 17pt; margin: 11mm 0 4mm; padding-top: 3mm; }
+  h3.ch.np { break-before: page; margin-top: 0; }
+  h4 { font-size: 11pt; margin: 6mm 0 1.5mm; }
+  h5 { font-size: 8.4pt; margin: 4mm 0 .5mm; }
+  th { font-size: 7.8pt; }
+  table { font-size: 8.8pt; }
+  figcaption { font-size: 7.6pt; }
+  ol.flow li { font-size: 8.8pt; }
+  ol.flow li::before { font-size: 17pt; }
+  ol.flow b { font-size: 9.6pt; }
+  .try .t { font-size: 9pt; }
+  .endnote { font-size: 7.6pt; margin: 10mm 0 0; }
+  a { text-decoration: none; }
+  .screen-only { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="cover" id="top">
+  <div class="brand">Collateral Effects</div>
+  <h1>PHONOGÈNE</h1>
+  <p class="sub">Chromatique, à coulisse, universel. VST3, AU e Standalone per macOS, versione 0.3</p>
+  {{CAPSTANS}}
+  <div class="title">Manuale d'uso</div>
+  <p class="desc">Lo strumento a nastro di Pierre Schaeffer e Jacques Poullin, costruito a Parigi negli anni Cinquanta per suonare i suoni registrati: la sua storia, il modo in cui si usava, e come usarne l'emulazione nel proprio studio.</p>
+  <div class="foot"><span>I dodici capstan del Phonogène chromatique: ogni diametro è una velocità del nastro, ogni velocità un semitono.</span><span>2026</span></div>
+</header>
+
+<div class="sheet">
+
+<nav class="toc main" aria-label="Indice">
+  <h3 class="ch" style="border-top:0;margin-top:48px">Indice</h3>
+  <div class="p">Parte prima · La macchina</div>
+  <ol>
+    <li><span class="n">1</span><a href="#c1">Parigi, 1948–1963: suonare il nastro</a></li>
+    <li><span class="n">2</span><a href="#c2">Come si lavorava con il Phonogène</a></li>
+    <li><span class="n">3</span><a href="#c3">Le tre macchine</a></li>
+  </ol>
+  <div class="p">Parte seconda · Il plugin</div>
+  <ol>
+    <li><span class="n">4</span><a href="#c4">Installazione e primi passi</a></li>
+    <li><span class="n">5</span><a href="#c5">L'interfaccia</a></li>
+    <li><span class="n">6</span><a href="#c6">Il nastro: sorgente, anello, registrazione</a></li>
+    <li><span class="n">7</span><a href="#c7">Modo chromatique</a></li>
+    <li><span class="n">8</span><a href="#c8">Modo à coulisse</a></li>
+    <li><span class="n">9</span><a href="#c9">Modo universel</a></li>
+    <li><span class="n">10</span><a href="#c10">Il carattere del nastro</a></li>
+    <li><span class="n">11</span><a href="#c11">MIDI e controller</a></li>
+    <li><span class="n">12</span><a href="#c12">Ricette di musique concrète</a></li>
+    <li><span class="n">A</span><a href="#ca">Tabella dei comandi</a></li>
+  </ol>
+</nav>
+
+<!-- ================================================================== PARTE PRIMA -->
+<div class="part"><span class="n">Parte prima</span><h2>La macchina</h2></div>
+
+<section class="main" id="c1">
+<h3 class="ch" style="border-top:0;margin-top:0;padding-top:0"><span class="n">1</span>Parigi, 1948–1963: suonare il nastro</h3>
+
+<aside class="side">
+  <span class="t">Cronologia</span>
+  <ol class="time">
+    <li><span class="y">1942</span><span>Schaeffer fonda lo Studio d'Essai della radio francese.</span></li>
+    <li><span class="y">1948</span><span><i>Cinq études de bruits</i>, trasmessi come «Concert de bruits».</span></li>
+    <li><span class="y">1950</span><span><i>Symphonie pour un homme seul</i>, con Pierre Henry.</span></li>
+    <li><span class="y">1951</span><span>Nasce il GRMC; lo studio passa al nastro magnetico.</span></li>
+    <li><span class="y">1952</span><span>Magnetofono a tre piste di Poullin. Schaeffer pubblica <i>À la recherche d'une musique concrète</i>.</span></li>
+    <li><span class="y">1953</span><span>Phonogène chromatique; poco dopo quello à coulisse.</span></li>
+    <li><span class="y">1958</span><span>Il gruppo diventa GRM, Groupe de Recherches Musicales.</span></li>
+    <li><span class="y">1963</span><span>Phonogène universel, con testine rotanti (data indicata dalle fonti).</span></li>
+    <li><span class="y">1966</span><span>Schaeffer pubblica il <i>Traité des objets musicaux</i>.</span></li>
+  </ol>
+</aside>
+
+<p class="lead">Il Phonogène è uno strumento per suonare i suoni registrati. Nasce a Parigi all'inizio degli anni Cinquanta, nello studio di musique concrète della radio francese, da un'idea di Pierre Schaeffer e dal progetto dell'ingegnere Jacques Poullin.</p>
+
+<h4>Dalla radio alla musique concrète</h4>
+<p>Pierre Schaeffer era un ingegnere delle telecomunicazioni e un uomo di radio. Nel 1942 fonda lo Studio d'Essai, un laboratorio per sperimentare con il mezzo radiofonico. Nel 1948, lavorando con giradischi e dischi incisi in studio, compone i <i>Cinq études de bruits</i>: treni, trottole, pentole, un pianoforte. La radio li trasmette il 5 ottobre come «Concert de bruits».</p>
+<p>È l'atto di nascita della <b>musique concrète</b>. La musica tradizionale parte da una partitura, astratta, e arriva al suono. Schaeffer fa il percorso opposto: parte da suoni già esistenti, li registra e li elabora direttamente sul supporto, ascoltando a ogni passo il risultato.</p>
+<p>Gli strumenti dei primi anni sono quelli di una radio: giradischi a velocità variabile, mixer, filtri, e il <b>solco chiuso</b>, un solco inciso in modo da richiudersi su se stesso e ripetere all'infinito un frammento. Con Pierre Henry, nel 1950, Schaeffer compone la <i>Symphonie pour un homme seul</i>.</p>
+
+<h4>Il nastro magnetico e le macchine di Poullin</h4>
+<p>Nel 1951 nasce il <b>Groupe de Recherche de Musique Concrète</b> (GRMC) e lo studio si attrezza con magnetofoni. Il nastro cambia il modo di lavorare: si taglia con le forbici, si incolla, si legge al contrario. Un anello di nastro fa ciò che faceva il solco chiuso, con molta più libertà.</p>
+<p>Per lavorare il nastro servono però macchine che non esistono in commercio, e a progettarle è Jacques Poullin: il <b>magnetofono a tre piste</b> per sovrapporre i suoni, il <b>potentiomètre d'espace</b> per muoverli nello spazio della sala durante i concerti, il <b>morphophone</b>, un anello di nastro letto da più testine che produce echi e ritardi, e il <b>Phonogène</b>, che legge un anello a velocità diverse.</p>
+
+<h4>L'oggetto sonoro</h4>
+<p>Nell'estetica di Schaeffer l'interesse non è riconoscere la fonte di un suono, ma ascoltarlo come <b>oggetto sonoro</b>: per la sua forma, la sua grana, il suo andamento nel tempo. Isolare un frammento in un anello, ripeterlo, trasporlo lungo dodici semitoni o rallentarlo fino quasi a fermarlo sono modi concreti per staccarlo dalla sua origine e farlo diventare materiale musicale. Il Phonogène è la macchina che rende questo gesto rapido e ripetibile, come suonare uno strumento.</p>
+
+<h4>Chi lo ha usato</h4>
+<p>Negli anni Cinquanta passano dallo studio, oltre a Schaeffer e Henry, compositori molto diversi tra loro: Pierre Boulez (<i>Études</i>, 1951–52), Olivier Messiaen (<i>Timbres-durées</i>, 1952), Karlheinz Stockhausen (<i>Konkrete Etüde</i>, 1952), Edgard Varèse, che vi realizza con Henry le parti su nastro di <i>Déserts</i> (1954), e Iannis Xenakis (<i>Diamorphoses</i>, 1957). Uno dei primi esempi noti di Phonogène à coulisse è il lungo glissando del <i>Voile d'Orphée</i> di Pierre Henry (1953).</p>
+<p>Dal 1958 il gruppo prende il nome di <b>GRM</b>, Groupe de Recherches Musicales, e accoglie, tra gli altri, François Bayle, Luc Ferrari e Bernard Parmegiani. I loop e la lettura a velocità variabile restano per decenni al centro del lavoro dello studio; la GRM ne porterà lo spirito nel digitale con i GRM Tools.</p>
+</section>
+
+<section class="main" id="c2">
+<h3 class="ch"><span class="n">2</span>Come si lavorava con il Phonogène</h3>
+
+<aside class="side">
+  <span class="t">«Faire et entendre»</span>
+  <p>Fare e ascoltare: il principio guida dello studio. Ogni operazione sul nastro veniva subito riascoltata e giudicata a orecchio, non calcolata in anticipo.</p>
+</aside>
+
+<p>Il Phonogène non era uno strumento da palco. Stava nello studio, accanto ai magnetofoni, e il suo suono veniva sempre ri-registrato. Una sessione di lavoro seguiva più o meno questo percorso.</p>
+</section>
+
+<div class="main">
+<ol class="flow full">
+  <li><b>Registrare</b>Il materiale di partenza, una voce, un pianoforte, un oggetto, un rumore della città, veniva registrato su nastro, in studio o con un'unità mobile.</li>
+  <li><b>Isolare</b>L'operatore ascoltava, sceglieva un frammento, lo tagliava e ne univa le estremità con nastro adesivo. Nasceva l'anello, con la sua giunta.</li>
+  <li><b>Trasporre</b>L'anello veniva montato sul Phonogène e suonato: dalla tastiera, per avere lo stesso oggetto a dodici altezze, o con la leva, per glissandi e rallentamenti.</li>
+  <li><b>Ri-registrare</b>L'uscita del Phonogène andava su un secondo magnetofono. Ogni trasposizione diventava un nuovo pezzo di nastro, catalogato e conservato.</li>
+  <li><b>Montare</b>I frammenti trasposti venivano tagliati, incollati e sovrapposti, anche sul magnetofono a tre piste, fino a comporre il brano.</li>
+  <li><b>Diffondere</b>In concerto il nastro finito veniva proiettato nella sala attraverso più altoparlanti, guidando il suono nello spazio.</li>
+</ol>
+</div>
+
+<section class="main">
+<p>In questo modo un unico suono diventava uno <b>strumento</b>: una famiglia di trasposizioni dello stesso oggetto, da cui attingere al montaggio come da una tastiera. È anche il motivo per cui il Phonogène è monofonico: serviva a produrre materiale, una nota alla volta, non a suonare accordi. Gli accordi e le polifonie nascevano dopo, sovrapponendo i nastri.</p>
+<p>Il plugin riproduce soprattutto il terzo passaggio, ma porta con sé anche il primo e il secondo: si può registrare direttamente dall'ingresso, scegliere il frammento e chiudere l'anello, con la giunta udibile se lo si desidera. Ri-registrare, montare e diffondere sono il lavoro che oggi si fa nel DAW.</p>
+</section>
+
+<section class="main" id="c3">
+<h3 class="ch"><span class="n">3</span>Le tre macchine</h3>
+<p>Il principio è lo stesso di qualsiasi magnetofono: un nastro letto più velocemente suona più acuto e più breve, letto più lentamente suona più grave e più lungo. Il Phonogène trasforma questo fatto fisico in un gesto musicale. Ne esistettero tre versioni.</p>
+
+<div class="tbl-wrap full">
+<table>
+  <thead><tr><th></th><th>Chromatique</th><th>À coulisse</th><th>Universel</th></tr></thead>
+  <tbody>
+    <tr><td><b>Come si suona</b></td><td>Tastiera di un'ottava: ogni tasto innesta uno dei dodici capstan</td><td>Una leva varia la velocità del motore, in modo continuo</td><td>Tastiera e leva, con un tamburo di testine rotanti al posto della testina fissa</td></tr>
+    <tr><td><b>Altezza e durata</b></td><td>Legate: più acuto vuol dire più breve</td><td>Legate, ma variano senza scalini</td><td>Indipendenti</td></tr>
+    <tr><td><b>Uso tipico</b></td><td>Melodie e scale ricavate da un rumore; famiglie di trasposizioni</td><td>Glissandi, cadute, rallentamenti fino all'arresto</td><td>Trasporre senza accorciare; allungare o congelare un suono senza cambiarne l'altezza</td></tr>
+    <tr><td><b>Costruzione</b></td><td>Ditta Tolana, 1953</td><td>Prototipi con la ditta SAREG</td><td>Anni Sessanta, le fonti indicano il 1963</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Il Phonogène chromatique</h4>
+<p>Un anello di nastro passava davanti a un'unica testina di lettura e poteva essere trascinato da <b>dodici capstan di diametri diversi</b>. Una piccola <b>tastiera di un'ottava</b> sceglieva quale capstan, attraverso il proprio rullo pressore, trascinasse il nastro: ogni tasto una velocità, ogni velocità un semitono della scala temperata. Con un solo nastro e una sola testina la macchina era monofonica e adatta soprattutto a suoni brevi. Secondo la GRM trasponeva «sur une à deux octaves».</p>
+
+<h4>Il Phonogène à coulisse</h4>
+<p>Detto anche a variazione continua: una <b>leva</b> agiva direttamente sulla velocità del motore, che poteva scendere quasi fino all'arresto passando per tutte le velocità intermedie, senza legarsi alla scala temperata. Era lo strumento dei glissandi e delle cadute di velocità, con tutta l'inerzia di un motore e del suo volano.</p>
+
+<aside class="side">
+  <span class="t">Il regolatore di Springer</span>
+  <p>Il principio delle testine rotanti viene dal regolatore temporale dell'ingegnere tedesco Anton Springer, usato anche nel Tempophon: più testine su un tamburo leggono il nastro a turno, ciascuna per un breve tratto.</p>
+</aside>
+<h4>Il Phonogène universel</h4>
+<p>Arrivato più tardi, sostituisce la testina fissa con una <b>testina rotante</b>: più testine montate su un tamburo leggono a turno il nastro, ciascuna per un breve segmento. Se il tamburo gira, la velocità relativa tra testina e nastro decide l'altezza; la velocità del nastro decide la durata. Così <b>altezza e durata diventano indipendenti</b>: si può trasporre un suono senza accorciarlo, o allungarlo senza renderlo più grave. È un'anticipazione meccanica del time-stretching digitale, con un suono proprio: le giunture tra un segmento e l'altro danno una grana leggera, a volte un ronzio.</p>
+
+<figure class="full">
+  <img src="img/phonogene_ui_universel.jpg" alt="Il plugin in modo universel: al centro del pozzetto, al posto della testina fissa, il tamburo con le testine rotanti.">
+  <figcaption>Il plugin in modo universel: al posto della testina fissa compare il tamburo rotante, e il pannello TÊTE ROTATIVE si attiva.</figcaption>
+</figure>
+</section>
+
+<!-- ================================================================== PARTE SECONDA -->
+<div class="part"><span class="n">Parte seconda</span><h2>Il plugin</h2></div>
+
+<section class="main" id="c4">
+<h3 class="ch" style="border-top:0;margin-top:0;padding-top:0"><span class="n">4</span>Installazione e primi passi</h3>
+
+<aside class="side">
+  <span class="t">Fedeltà e ipotesi</span>
+  <p>Il plugin riproduce il comportamento delle tre macchine: capstan di diametri diversi, innesto dei rulli, inerzia del motore, salto di lettura tra le testine del tamburo. Alcuni dettagli non sono documentati e sono stati tarati a orecchio: quale tasto corrisponda alla velocità nominale (qui il DO), i tempi dell'innesto, l'entità del pleurage.</p>
+</aside>
+
+<p>Il Phonogene di Collateral Effects è uno <b>strumento</b> per macOS in tre formati: VST3 per Ableton Live, AU per Logic Pro e un'applicazione Standalone che funziona senza DAW.</p>
+
+<h4>Installazione su macOS</h4>
+<ul class="l">
+  <li>Copia <b>Phonogene.vst3</b> in <code>/Library/Audio/Plug-Ins/VST3</code>, <b>Phonogene.component</b> in <code>/Library/Audio/Plug-Ins/Components</code> e <b>Phonogene.app</b> in <code>/Applications</code>.</li>
+  <li>Il plugin non è firmato da uno sviluppatore Apple. Dal Terminale rimuovi la quarantena:
+    <pre class="cmd">sudo xattr -dr com.apple.quarantine /Library/Audio/Plug-Ins/VST3/Phonogene.vst3 /Library/Audio/Plug-Ins/Components/Phonogene.component /Applications/Phonogene.app</pre></li>
+  <li>Riavvia il DAW e fai rianalizzare i plugin.</li>
+  <li>A ogni aggiornamento sostituisci <b>tutti e tre</b> i file. La versione installata è scritta sulla targhetta del pannello: se non corrisponde a quella scaricata, stai usando una copia vecchia.</li>
+</ul>
+
+<h4>In Ableton Live</h4>
+<p>Il Phonogene va inserito su una <b>traccia MIDI</b>. Per suonare un file basta caricarlo. Per registrare dal vivo serve il sidechain:</p>
+<ul class="l">
+  <li>Crea una traccia audio con l'ingresso della scheda audio, o con una clip da usare come sorgente.</li>
+  <li>Nel dispositivo Phonogene apri il menu <b>Sidechain</b> e scegli quella traccia in <i>Audio From</i>.</li>
+  <li>Porta <span class="k">SOURCE</span> su <span class="k">ENTRÉE</span>, premi <span class="k">ENREG.</span>, suona la sorgente e ripremi <span class="k">ENREG.</span>: l'anello è pronto.</li>
+  <li>Suona dalla tastiera del controller, nell'ottava di C3, o da quella a schermo con il mouse.</li>
+</ul>
+<p>Nella versione Standalone l'ingresso è quello della scheda audio, scelto nelle impostazioni audio dell'applicazione.</p>
+
+<div class="try">
+  <span class="t">In trenta secondi</span>
+  <p>Trascina un file WAV o AIFF sul plugin e premi i tasti: ogni tasto è un capstan, ogni capstan un semitono. Gira <span class="k">DÉBUT</span> e <span class="k">LONGUEUR</span> per scegliere il frammento. Poi porta <span class="k">MODE</span> su coulisse e muovi la leva; infine su universel, e abbassa la leva fino quasi a fermare il nastro.</p>
+</div>
+</section>
+
+<section class="main" id="c5">
+<h3 class="ch np"><span class="n">5</span>L'interfaccia</h3>
+<p>Il pannello riproduce l'aspetto di una macchina da laboratorio degli anni Cinquanta. I nomi dei comandi sono in francese, come sugli strumenti dello studio; passando con il mouse su qualsiasi comando compare un riquadro con il nome e la funzione in italiano.</p>
+<figure class="full">
+  <img src="img/panoramica.jpg" alt="Il pannello del Phonogene con diciassette numeri ambra che indicano le sue parti.">
+  <figcaption>Il pannello completo. I numeri corrispondono alla tabella che segue.</figcaption>
+</figure>
+<div class="tbl-wrap full">
+<table>
+  <thead><tr><th>N.</th><th>Elemento</th><th>Funzione</th></tr></thead>
+  <tbody>
+    <tr><td class="num">1</td><td>Pozzetto</td><td>La meccanica: anello di nastro, dodici capstan con i rulli pressori, testina o tamburo, perno tenditore.</td></tr>
+    <tr><td class="num">2</td><td><span class="k">CABESTANS</span></td><td>Le spie indicano il capstan innestato (chromatique) o l'altezza suonata (universel).</td></tr>
+    <tr><td class="num">3</td><td>Tachimetro</td><td>Velocità reale del nastro; in coulisse anche quella del motore, in universel l'altezza.</td></tr>
+    <tr><td class="num">4</td><td><span class="k">TÊTE ROTATIVE</span></td><td><span class="k">TÊTES</span>, <span class="k">FENÊTRE</span>, <span class="k">DURETÉ</span>: i comandi del tamburo, attivi in universel.</td></tr>
+    <tr><td class="num">5</td><td>Targhetta</td><td>Nome della macchina scelta con <span class="k">MODE</span> e versione del plugin.</td></tr>
+    <tr><td class="num">6</td><td><span class="k">MODE</span></td><td>Chromatique, à coulisse, universel.</td></tr>
+    <tr><td class="num">7</td><td><span class="k">SOURCE</span></td><td><span class="k">FICHIER</span>, un file caricato, o <span class="k">ENTRÉE</span>, il nastro registrato dall'ingresso.</td></tr>
+    <tr><td class="num">8</td><td><span class="k">ENREG.</span></td><td>Registra l'ingresso sull'anello; la spia rossa è accesa durante la registrazione.</td></tr>
+    <tr><td class="num">9</td><td><span class="k">ÉCOUTE</span></td><td>Manda in uscita anche il segnale in ingresso, per sentire cosa si registra.</td></tr>
+    <tr><td class="num">10</td><td><span class="k">MONO</span></td><td>Nastro a una traccia, come l'originale.</td></tr>
+    <tr><td class="num">11</td><td>Finestra del nastro</td><td>Forma d'onda, regione dell'anello in ambra, punto di lettura in rosso.</td></tr>
+    <tr><td class="num">12</td><td><span class="k">CHARGER</span>, <span class="k">EXPORTER</span></td><td>Carica un file come nastro; esporta la registrazione in WAV o AIFF.</td></tr>
+    <tr><td class="num">13</td><td>Tastiera</td><td>Un'ottava, da DO a SI; si suona anche con il mouse.</td></tr>
+    <tr><td class="num">14</td><td><span class="k">OCTAVE</span>, <span class="k">ÉTENDU</span></td><td>Ottava superiore della tastiera; tastiera estesa a tutte le ottave del controller.</td></tr>
+    <tr><td class="num">15</td><td><span class="k">COULISSE</span></td><td>La leva: velocità continua in coulisse, durata in universel.</td></tr>
+    <tr><td class="num">16</td><td>Manopole</td><td><span class="k">DÉBUT</span>, <span class="k">LONGUEUR</span>, <span class="k">INERTIE</span>, <span class="k">NIVEAU</span>, <span class="k">PLEURAGE</span>, <span class="k">SOUFFLE</span>, <span class="k">SATURATION</span>.</td></tr>
+    <tr><td class="num">17</td><td><span class="k">RETOUR</span>, <span class="k">COLLURE</span></td><td>Ripartenza dall'inizio dell'anello; giunta dell'anello udibile.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<aside class="side">
+  <span class="t">Il riquadro informativo</span>
+  <img src="img/hover_crop.jpg" alt="Riquadro informativo su PLEURAGE: Fluttuazione, valore 0,25, CC 78." style="margin:4px 0 6px;border-radius:2px">
+  <p>Nome e funzione in italiano, valore attuale con due decimali, CC assegnato.</p>
+</aside>
+<h4>Gesti</h4>
+<ul class="l">
+  <li><b>Manopole e leva</b>: trascina in verticale o in orizzontale. I selettori <span class="k">MODE</span>, <span class="k">SOURCE</span> e <span class="k">TÊTES</span> cambiano posizione con un clic o con un breve trascinamento.</li>
+  <li><b>Interruttori</b>: un clic scatta tra O (spento) e I (acceso).</li>
+  <li><b>Passaggio del mouse</b>: mostra il riquadro informativo.</li>
+  <li><b>Ctrl+clic</b> riassegna il controllo MIDI del comando; il <b>tasto destro</b> apre il menu MIDI (capitolo 11).</li>
+  <li><b>Finestra</b>: si ridimensiona dall'angolo in basso a destra mantenendo le proporzioni; si apre sempre a 1000 × 740 punti.</li>
+</ul>
+</section>
+
+<section class="main" id="c6">
+<h3 class="ch"><span class="n">6</span>Il nastro: sorgente, anello, registrazione</h3>
+<p>Come sulla macchina originale, si lavora su un <b>anello di nastro</b>: un frammento che si ripete. Il commutatore <span class="k">SOURCE</span> sceglie da dove viene il nastro.</p>
+
+<h5>SOURCE · FICHIER</h5>
+<p>Il nastro è un file audio (WAV, AIFF, FLAC e gli altri formati supportati da macOS), lungo fino a 120 secondi. Si carica con <span class="k">CHARGER</span> o trascinandolo sul plugin; durante il caricamento la finestra del nastro mostra «CHARGEMENT…». Il percorso del file è salvato nel progetto e il file viene ricaricato alla riapertura.</p>
+
+<h5>SOURCE · ENTRÉE</h5>
+<p>Il nastro è registrato dall'ingresso: il sidechain in Live, la scheda audio nello Standalone. <span class="k">ENREG.</span> avvia e ferma la registrazione, fino a 30 secondi; mentre registra, il nastro si può già suonare. <span class="k">ÉCOUTE</span> fa sentire l'ingresso in uscita. La registrazione è salvata nel progetto, senza perdita di qualità, e <span class="k">EXPORTER</span> la salva come file WAV o AIFF a 24 bit, da usare altrove.</p>
+
+<aside class="side">
+  <span class="t">Perché un anello</span>
+  <p>Il solco chiuso del disco e poi l'anello di nastro sono gli strumenti con cui Schaeffer isolava un frammento dal suo contesto. Ripetuto, il frammento smette di raccontare da dove viene e diventa oggetto sonoro.</p>
+</aside>
+<h5>DÉBUT e LONGUEUR</h5>
+<p>Scelgono quale parte del nastro forma l'anello: <span class="k">DÉBUT</span> è il punto di inizio, <span class="k">LONGUEUR</span> la durata, da mezzo per cento a tutto il nastro. La regione appare in ambra nella finestra del nastro. Anelli corti producono ripetizioni ritmiche e, alle velocità alte, ronzii e timbri nuovi; anelli lunghi lasciano riconoscere il materiale. Si possono girare mentre il nastro suona: il passaggio alla nuova regione è morbido, senza clic.</p>
+
+<h5>COLLURE</h5>
+<p>Sulla macchina l'anello era chiuso con una giunta di nastro adesivo. Con <span class="k">COLLURE</span> su I la giunta passa sulla testina a ogni giro: un breve calo di livello nel punto di chiusura, che si allunga quando il nastro rallenta. È il segno ritmico tipico dei loop di musique concrète, da attivare quando serve.</p>
+
+<h5>MONO</h5>
+<p>Il Phonogène leggeva un nastro a una sola traccia: il suono era monofonico. Con <span class="k">MONO</span> su I i due canali vengono sommati e le due uscite ricevono lo stesso segnale. Su O il plugin conserva lo stereo del materiale.</p>
+</section>
+
+<section class="main" id="c7">
+<h3 class="ch"><span class="n">7</span>Modo chromatique</h3>
+<figure class="full">
+  <img src="img/phonogene_ui.jpg" alt="Il plugin in modo chromatique con il tasto FA diesis premuto: la spia FA diesis è accesa e il tachimetro segna 1,414.">
+  <figcaption>FA# premuto: il rullo del capstan FA# è innestato, la spia si accende e il nastro scorre a 1,414 volte la velocità nominale.</figcaption>
+</figure>
+<p>Ogni tasto innesta il rullo pressore di un capstan, e il diametro del capstan decide la velocità del nastro secondo la scala temperata. Il <b>DO</b> corrisponde alla velocità nominale, il <b>SI</b> a quasi il doppio. Lasciato il tasto, il rullo si stacca e il nastro rallenta fino a fermarsi: il suono scende e svanisce in modo naturale.</p>
+<ul class="l">
+  <li><b>Una nota alla volta.</b> Un solo nastro, una sola testina. Premendo un secondo tasto senza staccare il primo, il nastro scivola alla nuova velocità, in legato.</li>
+  <li><span class="k">RETOUR</span> su I fa ripartire il nastro dall'inizio dell'anello a ogni nuovo attacco, come un campionatore. Su O il nastro riprende da dove si era fermato, come una bobina vera.</li>
+  <li><span class="k">OCTAVE</span> porta la tastiera all'ottava superiore, con velocità doppia; il tachimetro passa alla scala da 0 a 4.</li>
+  <li><span class="k">ÉTENDU</span> su O fa ricadere tutte le ottave del controller nell'unica ottava della macchina. Su I ogni tasto ha la sua velocità: C3 nominale, C4 doppia, C2 metà.</li>
+  <li><span class="k">INERTIE</span> è il tempo che il nastro impiega a raggiungere la nuova velocità. Valori bassi danno attacchi secchi; valori alti partenze e arresti in glissando. Sulla macchina reale l'innesto era probabilmente sotto i 300 ms: oltre è un uso espressivo.</li>
+</ul>
+</section>
+
+<section class="main" id="c8">
+<h3 class="ch"><span class="n">8</span>Modo à coulisse</h3>
+<figure class="full">
+  <img src="img/phonogene_ui_coulisse.jpg" alt="Il plugin in modo à coulisse con la leva a 0,6.">
+  <figcaption>La leva a 0,6: il nastro, trascinato dal primo capstan, scorre al 60% della velocità nominale.</figcaption>
+</figure>
+<p>Qui la velocità è continua. La leva <span class="k">COULISSE</span> regola il motore da quasi fermo fino a due volte la velocità nominale; il pitch bend la sposta ancora, di un'ottava in su o in giù, e la mod wheel muove la leva dal controller.</p>
+<ul class="l">
+  <li><b>I tasti non scelgono l'altezza.</b> Qualsiasi tasto innesta il nastro, che si stacca al rilascio. <span class="k">ÉTENDU</span> qui non ha effetto e appare attenuato.</li>
+  <li><span class="k">INERTIE</span> diventa la massa del motore con il suo volano: la velocità insegue la leva con un ritardo tre volte maggiore, fino a tre secondi. Leva veloce e inerzia alta danno glissandi lunghi e morbidi.</li>
+  <li><b>Verso l'arresto</b> il suono cambia come su un vero magnetofono: il livello cala, i bassi spariscono, aumentano tremolio e deriva, compare un leggero rombo del motore che cresce con <span class="k">SOUFFLE</span>.</li>
+</ul>
+<div class="try">
+  <span class="t">Un gesto da provare</span>
+  <p>Tieni premuto un tasto, porta la leva a 1, poi falla scendere lentamente fino in fondo: il suono si abbassa, si sgrana e si spegne nel rombo del motore, come un nastro trattenuto con un dito.</p>
+</div>
+</section>
+
+<section class="main" id="c9">
+<h3 class="ch"><span class="n">9</span>Modo universel</h3>
+<p>Il tamburo con le testine rotanti separa le due grandezze che il nastro lega insieme:</p>
+<ul class="l">
+  <li>la <b>tastiera</b>, con <span class="k">OCTAVE</span>, <span class="k">ÉTENDU</span> e il pitch bend, decide l'<b>altezza</b>;</li>
+  <li>la leva <span class="k">COULISSE</span> decide la <b>velocità del nastro</b>, cioè la durata: a 2 il frammento scorre il doppio più in fretta senza cambiare altezza; vicino a 0 il nastro quasi si ferma e il suono resta sospeso;</li>
+  <li><span class="k">INERTIE</span> fa scivolare sia l'altezza tra una nota e l'altra sia la velocità del nastro.</li>
+</ul>
+<h4>I comandi del tamburo</h4>
+<div class="tbl-wrap full">
+<table>
+  <thead><tr><th>Comando</th><th>Che cosa fa</th><th>Come si sente</th></tr></thead>
+  <tbody>
+    <tr><td><span class="k">TÊTES</span> <span class="num">2 · 3 · 4</span></td><td>Numero di testine sul tamburo; il nastro ne avvolge una alla volta.</td><td>Cambia la frequenza delle giunture tra un segmento e l'altro.</td></tr>
+    <tr><td><span class="k">FENÊTRE</span> <span class="num">10–250 ms</span></td><td>Lunghezza del segmento letto da ogni testina, cioè la distanza tra due testine misurata sul nastro. Predefinita a 40 ms, come nel regolatore di Springer.</td><td>Corta: suono granuloso, ronzante. Lunga: più liscio, con ripetizioni udibili.</td></tr>
+    <tr><td><span class="k">DURETÉ</span> <span class="num">0–1</span></td><td>Durata del passaggio tra una testina e la successiva.</td><td>A 0 le testine si sfumano l'una nell'altra, morbido. A 1 commutazione secca, con i clic di raccordo tipici della macchina.</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Su un suono puro il salto tra le testine si sente come un leggero battimento, e l'altezza può scostarsi di poco: è il carattere delle testine rotanti. Quando <span class="k">FENÊTRE</span> contiene un numero intero di periodi del suono, l'altezza torna esatta. <span class="k">FENÊTRE</span> e <span class="k">DURETÉ</span> si possono muovere mentre si suona; muovendo <span class="k">FENÊTRE</span> in fretta si sente un breve glissando, perché il tratto di nastro tra le testine cambia lunghezza.</p>
+</section>
+
+<section class="main" id="c10">
+<h3 class="ch"><span class="n">10</span>Il carattere del nastro</h3>
+<p>Quattro manopole danno al suono le imperfezioni di una macchina vera. Agiscono in tutte e tre le modalità.</p>
+<div class="tbl-wrap full">
+<table>
+  <thead><tr><th>Manopola</th><th>Che cosa fa</th></tr></thead>
+  <tbody>
+    <tr><td><span class="k">PLEURAGE</span></td><td>Le piccole oscillazioni di velocità del trasporto: il pleurage lento, il tremolio rapido e una lenta deriva. Nascono dalla rotazione delle parti meccaniche: in coulisse e in universel seguono il motore e rallentano con lui. A 0 il trasporto è perfetto.</td></tr>
+    <tr><td><span class="k">SOUFFLE</span></td><td>Il soffio del nastro, presente solo quando il nastro scorre. È inciso sul nastro, quindi si traspone con la lettura: più grave quando il nastro rallenta, più acuto quando accelera.</td></tr>
+    <tr><td><span class="k">SATURATION</span></td><td>Saturazione morbida della testina, che arrotonda i picchi e dà densità.</td></tr>
+    <tr><td><span class="k">NIVEAU</span></td><td>Livello d'uscita, da −36 a +12 dB.</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Anche senza queste manopole la lettura ha il colore di una testina d'epoca, con estremi gravi e acuti un po' attenuati. Alle velocità alte il suono resta pulito: il plugin evita i fischi metallici che una trasposizione digitale ingenua produrrebbe.</p>
+
+<h4>Che cosa mostrano gli indicatori</h4>
+<ul class="l">
+  <li><b>Pozzetto</b>: il nastro scorre alla velocità reale; i capstan girano sempre; il rullo innestato è cerchiato d'ambra; in universel il tamburo gira alla velocità relativa tra testina e nastro.</li>
+  <li><b>Spie</b> <span class="k">CABESTANS</span>: il capstan innestato in chromatique, l'altezza in universel; spente in coulisse.</li>
+  <li><b>Tachimetro</b>: velocità del nastro da 0 a 2, o da 0 a 4 con <span class="k">OCTAVE</span>. Sotto la scala, la velocità del motore in coulisse e l'altezza in universel.</li>
+</ul>
+</section>
+
+<section class="main" id="c11">
+<h3 class="ch"><span class="n">11</span>MIDI e controller</h3>
+<p>La tastiera della macchina corrisponde all'<b>ottava di C3</b> del controller, le note da DO a SI secondo la convenzione di Live e Logic. Con <span class="k">ÉTENDU</span> su O anche le altre ottave suonano, ricadendo nell'unica ottava della macchina. Il pitch bend agisce in coulisse e in universel.</p>
+
+<h4>Controlli predefiniti</h4>
+<p>Le manopole partono dal CC 74, la leva dalla mod wheel. Tutto si può riassegnare.</p>
+<div class="tbl-wrap full">
+<table>
+  <thead><tr><th>Comando</th><th>CC</th><th>Comando</th><th>CC</th><th>Comando</th><th>CC</th></tr></thead>
+  <tbody>
+    <tr><td><span class="k">DÉBUT</span></td><td class="num">74</td><td><span class="k">SATURATION</span></td><td class="num">80</td><td><span class="k">MODE</span></td><td class="num">27</td></tr>
+    <tr><td><span class="k">LONGUEUR</span></td><td class="num">75</td><td><span class="k">TÊTES</span></td><td class="num">81</td><td><span class="k">SOURCE</span></td><td class="num">28</td></tr>
+    <tr><td><span class="k">INERTIE</span></td><td class="num">76</td><td><span class="k">FENÊTRE</span></td><td class="num">82</td><td><span class="k">ENREG.</span></td><td class="num">29</td></tr>
+    <tr><td><span class="k">NIVEAU</span></td><td class="num">77</td><td><span class="k">DURETÉ</span></td><td class="num">83</td><td><span class="k">ÉCOUTE</span></td><td class="num">30</td></tr>
+    <tr><td><span class="k">PLEURAGE</span></td><td class="num">78</td><td><span class="k">COULISSE</span></td><td class="num">1</td><td><span class="k">RETOUR</span></td><td class="num">31</td></tr>
+    <tr><td><span class="k">SOUFFLE</span></td><td class="num">79</td><td><span class="k">OCTAVE</span></td><td class="num">15</td><td><span class="k">ÉTENDU</span></td><td class="num">14</td></tr>
+    <tr><td></td><td></td><td><span class="k">MONO</span></td><td class="num">16</td><td><span class="k">COLLURE</span></td><td class="num">17</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Riassegnare un controllo</h4>
+<ul class="l">
+  <li><b>Ctrl+clic</b> sul comando: il comando lampeggia in ambra. Muovi la manopola o il cursore del controller che vuoi usare e l'assegnazione è fatta. Un secondo ctrl+clic annulla.</li>
+  <li><b>Tasto destro</b> sul comando: il menu mostra il CC attuale e permette di sceglierne uno direttamente da <b>Assegna CC</b>, dove i numeri già usati riportano il comando a cui appartengono. Dallo stesso menu: <b>Rimuovi il CC</b> e <b>Ripristina i CC predefiniti</b>.</li>
+  <li>Se il CC scelto era già usato da un altro comando, viene tolto da lì: ogni CC muove un solo comando.</li>
+  <li>Interruttori e selettori: un valore da 64 in su vale I; i selettori dividono l'escursione del CC tra le loro posizioni.</li>
+  <li>Le assegnazioni sono salvate nel progetto, e i movimenti arrivano al DAW come automazione.</li>
+</ul>
+</section>
+
+<section class="main recipes" id="c12">
+<h3 class="ch"><span class="n">12</span>Ricette di musique concrète</h3>
+<p>Cinque punti di partenza, ciascuno legato a un uso storico della macchina.</p>
+<h5>Melodia di un oggetto</h5>
+<p>Registra un colpo su un oggetto metallico. Modo chromatique, <span class="k">RETOUR</span> su I, <span class="k">LONGUEUR</span> breve, <span class="k">INERTIE</span> tra 20 e 40 ms. Suona una melodia: il timbro dell'oggetto cambia a ogni altezza.</p>
+<h5>Étude aux chemins de fer</h5>
+<p>Un loop ritmico, passi, una macchina, un treno, in modo chromatique con <span class="k">RETOUR</span> su O: cambiando tasto il ritmo accelera e rallenta insieme all'altezza, come nei primi studi di Schaeffer.</p>
+<h5>La caduta di Orfeo</h5>
+<p>Una voce lunga in modo à coulisse, <span class="k">INERTIE</span> alta, leva da 1 a 0 in alcuni secondi, <span class="k">PLEURAGE</span> e <span class="k">SOUFFLE</span> a metà: un glissando discendente che si spegne nel rombo.</p>
+<h5>Accordo congelato</h5>
+<p>Una nota di pianoforte in modo universel, leva quasi a 0, <span class="k">FENÊTRE</span> tra 80 e 120 ms, <span class="k">DURETÉ</span> bassa: il suono resta sospeso e si può cambiarne l'altezza dalla tastiera senza farlo ripartire. Registra più note su tracce diverse del DAW per costruire l'accordo, come si faceva sovrapponendo i nastri.</p>
+<h5>Grana meccanica</h5>
+<p>Modo universel, <span class="k">TÊTES</span> su 2, <span class="k">DURETÉ</span> alta, <span class="k">FENÊTRE</span> tra 15 e 30 ms: le giunture tra le testine diventano un ronzio ritmico, la firma sonora del tamburo rotante.</p>
+
+<div class="try">
+  <span class="t">Lavorare come allo studio</span>
+  <p>Registra l'uscita del Phonogene su una traccia audio del DAW, una trasposizione alla volta, e dai un nome a ogni clip. Avrai la tua famiglia di oggetti sonori, pronta per il montaggio.</p>
+</div>
+</section>
+
+<section class="main" id="ca">
+<h3 class="ch np"><span class="n">A</span>Tabella dei comandi</h3>
+<div class="tbl-wrap full">
+<table>
+  <thead><tr><th>Comando</th><th>Valori</th><th>Predefinito</th><th>Dove agisce</th></tr></thead>
+  <tbody>
+    <tr><td><span class="k">MODE</span></td><td>Chromatique, à coulisse, universel</td><td>Chromatique</td><td></td></tr>
+    <tr><td><span class="k">SOURCE</span></td><td>Fichier, entrée</td><td>Fichier</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">ENREG.</span></td><td>O, I</td><td>O</td><td>Con <span class="k">SOURCE</span> su entrée</td></tr>
+    <tr><td><span class="k">ÉCOUTE</span></td><td>O, I</td><td>O</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">RETOUR</span></td><td>O, I</td><td>I</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">ÉTENDU</span></td><td>O, I</td><td>O</td><td>Chromatique, universel</td></tr>
+    <tr><td><span class="k">OCTAVE</span></td><td>O, I</td><td>O</td><td>Chromatique, universel</td></tr>
+    <tr><td><span class="k">MONO</span></td><td>O, I</td><td>O</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">COLLURE</span></td><td>O, I</td><td>O</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">DÉBUT</span></td><td class="num">0,00 – 1,00</td><td class="num">0,00</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">LONGUEUR</span></td><td class="num">0,005 – 1,00</td><td class="num">1,00</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">INERTIE</span></td><td class="num">2 – 2000 ms</td><td class="num">35 ms</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">NIVEAU</span></td><td class="num">−36 – +12 dB</td><td class="num">0 dB</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">PLEURAGE</span></td><td class="num">0,00 – 1,00</td><td class="num">0,25</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">SOUFFLE</span></td><td class="num">0,00 – 1,00</td><td class="num">0,20</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">SATURATION</span></td><td class="num">0,00 – 1,00</td><td class="num">0,20</td><td>Tutti i modi</td></tr>
+    <tr><td><span class="k">COULISSE</span></td><td class="num">0,02 – 2,00</td><td class="num">1,00</td><td>Coulisse (velocità), universel (durata)</td></tr>
+    <tr><td><span class="k">TÊTES</span></td><td class="num">2, 3, 4</td><td class="num">4</td><td>Universel</td></tr>
+    <tr><td><span class="k">FENÊTRE</span></td><td class="num">10 – 250 ms</td><td class="num">40 ms</td><td>Universel</td></tr>
+    <tr><td><span class="k">DURETÉ</span></td><td class="num">0,00 – 1,00</td><td class="num">0,50</td><td>Universel</td></tr>
+    <tr><td>Pitch bend</td><td class="num">±12 semitoni</td><td></td><td>Coulisse, universel</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h4>Limiti</h4>
+<ul class="l">
+  <li>Monofonico in tutte le modalità, come la macchina originale: suona l'ultima nota premuta.</li>
+  <li>Registrazione dall'ingresso fino a 30 secondi; file fino a 120 secondi.</li>
+  <li>Trasposizioni pulite fino a quattro volte la velocità nominale; oltre, il suono si fa più aspro.</li>
+  <li>La versione AU per Logic Pro non è ancora stata verificata.</li>
+</ul>
+
+<h4>Fonti storiche</h4>
+<ul class="l sources">
+  <li>INA GRM, <a href="https://artsandculture.google.com/story/YAVhtqcihjlQIw">«Machines, Tools, Studios»</a>, Google Arts &amp; Culture.</li>
+  <li>Pierre Henry, <a href="https://pierre-henry.org/studios/studio-dessai?lang=en">Studio d'Essai, 1949–1958</a>.</li>
+  <li><a href="https://120years.net/the-grm-group-and-rtf-electronic-music-studio-pierre-schaeffer-jacques-poullin-france-1951/">«The Groupe de Recherches Musicales»</a>, 120 Years of Electronic Music.</li>
+  <li><a href="https://dafx25.dii.univpm.it/wp-content/uploads/2025/09/DAFx25_paper_70.pdf">DAFx 2025, paper 70</a>, sulle macchine a nastro di Poullin e i loro costruttori.</li>
+  <li>D. Teruggi, «De phonogène en phonogène», 2001; O. Julien, intervista a François Bayle, <i>Canadian University Music Review</i>, 2004.</li>
+</ul>
+<p class="endnote">Phonogene è un plugin di Collateral Effects. Phonogène, GRM e i nomi citati appartengono ai rispettivi titolari e sono usati solo per descrivere la storia della macchina.</p>
+</section>
+
+</div>
+</body>
+</html>

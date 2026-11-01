@@ -1,0 +1,6 @@
+Manuale d'uso del Phonogene (HTML + PDF A4).
+
+  python3 build.py            # genera src/index.html dal template (copertina con i capstan)
+  node render.js <cartella>   # PDF A4 e anteprime schermo (richiede Playwright)
+
+Font: Archivo e Spectral (SIL Open Font License).
